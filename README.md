@@ -90,6 +90,3 @@ npm run dev
 ### Chrome Extension
 ![Extension](screenshots/extension.png)
 
-## One-line pitch
-
-**"We built an AI system that turns meetings into accountable execution — automatically."**
