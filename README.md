@@ -46,7 +46,7 @@ Google Meet → Chrome Extension → FastAPI Backend → CrewAI Multi-Agent Syst
 cd backend
 python -m venv venv
 venv\Scripts\activate
-pip install fastapi uvicorn sqlalchemy python-dotenv crewai crewai-tools litellm groq
+pip install -r requirements.txt
 ```
 
 Create `backend/.env`:
