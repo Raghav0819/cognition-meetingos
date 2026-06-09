@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 340px;
+      background: #0a0a0f;
+      color: #e5e5e5;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+    }
+
+    .header {
+      background: #111118;
+      padding: 16px;
+      border-bottom: 1px solid #222;
+    }
+    .header h1 { font-size: 15px; font-weight: 600; color: #fff; }
+    .header p  { font-size: 11px; color: #666; margin-top: 2px; }
+
+    .body { padding: 16px; }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #444;
+      flex-shrink: 0;
+    }
+    .dot.active { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .status-text { color: #aaa; font-size: 12px; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-val { font-size: 20px; font-weight: 700; color: #a78bfa; }
+    .stat-label { font-size: 10px; color: #555; margin-top: 2px; }
+
+    .field { margin-bottom: 10px; }
+    .field label { display: block; color: #666; font-size: 11px; margin-bottom: 5px; }
+    .field input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: #fff;
+      font-size: 12px;
+    }
+    .field input:focus { outline: none; border-color: #7c3aed; }
+
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      margin-bottom: 8px;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-record { background: #16a34a; color: #fff; }
+    .btn-stop   { background: #dc2626; color: #fff; }
+    .btn-send   { background: #7c3aed; color: #fff; }
+
+    .message {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #aaa;
+      margin-top: 8px;
+      display: none;
+    }
+    .message.show { display: block; }
+    .message.success { border-color: #166534; color: #4ade80; background: #052e16; }
+    .message.error   { border-color: #991b1b; color: #f87171; background: #2d0a0a; }
+
+    .participants {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #555;
+    }
+    .participants span {
+      display: inline-block;
+      background: #1a1a2e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 2px 7px;
+      margin: 2px;
+      color: #a78bfa;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Cognition MeetingOS</h1>
+    <p>AI Meeting Capture</p>
+  </div>
+
+  <div class="body">
+    <div class="status-bar">
+      <div class="dot" id="dot"></div>
+      <span class="status-text" id="statusText">Not recording</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-val" id="lineCount">0</div>
+        <div class="stat-label">Lines captured</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="partCount">0</div>
+        <div class="stat-label">Participants</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Meeting Title</label>
+      <input type="text" id="meetingTitle" placeholder="Sprint Planning Q2" />
+    </div>
+    <div class="field">
+      <label>Department</label>
+      <input type="text" id="department" placeholder="IT" value="IT" />
+    </div>
+
+    <button class="btn btn-record" id="btnRecord">Start Recording</button>
+    <button class="btn btn-stop"   id="btnStop"   style="display:none">Stop Recording</button>
+    <button class="btn btn-send"   id="btnSend"   disabled>Send to AI Agents</button>
+
+    <div class="message" id="message"></div>
+
+    <div class="participants" id="participantList"></div>
+    <div id="manualSection" style="margin-top:12px; display:none;">
+      <div class="field">
+        <label>Paste transcript manually (Speaker: text, one per line)</label>
+        <textarea id="manualTranscript" rows="5" style="width:100%;background:#111;border:1px solid #333;border-radius:6px;padding:8px;color:#fff;font-size:11px;resize:vertical;" placeholder="Rahul: I will complete the API by Monday&#10;Priya: I will review designs by Wednesday&#10;Amit: I will fix the database bug by Tuesday"></textarea>
+      </div>
+      <button class="btn btn-send" id="btnInject" style="background:#0891b2;">Load This Transcript</button>
+    </div>
+
+    <button id="btnToggleManual" style="width:100%;padding:6px;background:transparent;border:1px solid #333;border-radius:6px;color:#666;font-size:11px;cursor:pointer;margin-top:6px;">
+      Can't capture automatically? Paste manually
+    </button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

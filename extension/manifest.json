@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Cognition MeetingOS",
+  "version": "1.0",
+  "description": "Captures Google Meet transcripts and sends to AI for processing",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "http://localhost:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Cognition MeetingOS"
+  }
+}
