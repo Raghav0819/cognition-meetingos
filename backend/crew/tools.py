@@ -43,7 +43,7 @@ class SaveTasksTool(BaseTool):
                     'companyId':   company_id,
                     'title':       t.get('title', 'Untitled Task'),
                     'description': t.get('description', ''),
-                    'assigned_to': t.get('assigned_to', 'Unassigned'),
+                    'assigned_to': t.get('assigned_to', 'Unassigned').lower(),
                     'deadline':    t.get('deadline', 'TBD'),
                     'status':      'pending',
                     'confidence':  float(t.get('confidence', 50)),

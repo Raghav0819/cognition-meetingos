@@ -31,11 +31,11 @@ def get_all_tasks(x_company_id: str = Header(default="")):
 def get_tasks_for_user(name: str, x_company_id: str = Header(default="")):
     if not x_company_id:
         return []
-    tasks = (db.collection('tasks')
-               .where('companyId', '==', x_company_id)
-               .where('assigned_to', '==', name)
-               .stream())
-    return [{'id': t.id, **t.to_dict()} for t in tasks]
+    # Case-insensitive match — CrewAI may capitalize names differently than the user's profile
+    name_lower = name.lower()
+    tasks = db.collection('tasks').where('companyId', '==', x_company_id).stream()
+    return [{'id': t.id, **t.to_dict()} for t in tasks
+            if (t.to_dict().get('assigned_to') or '').lower() == name_lower]
 
 
 @router.post("/{task_id}/validate")
