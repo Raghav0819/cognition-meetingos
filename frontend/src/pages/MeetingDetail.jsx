@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import TaskCard from '../components/TaskCard'
 import { getMeeting, validateTask, regenerateSummary, chatMeeting } from '../api'
+import { useToast } from '../contexts/ToastContext'
 
 function EfficiencyScore({ tasks }) {
   if (!tasks.length) return null
@@ -344,6 +345,7 @@ function StatBar({ tasks }) {
 export default function MeetingDetail() {
   const { id }                    = useParams()
   const navigate                  = useNavigate()
+  const { toast }                 = useToast()
   const [meeting,   setMeeting]   = useState(null)
   const [activeTab, setActiveTab] = useState('tasks')
   const [loading,   setLoading]   = useState(true)
@@ -365,6 +367,7 @@ export default function MeetingDetail() {
 
   async function handleValidate(taskId, decision) {
     await validateTask(taskId, { validated: decision })
+    toast(`Task ${decision}`, decision === 'approved' ? 'success' : 'warning')
     fetchMeeting()
   }
 
@@ -375,6 +378,7 @@ export default function MeetingDetail() {
 
   async function handleRegenerate() {
     setRegenerating(true)
+    toast('Generating Minutes of Meeting…', 'info', 6000)
     try {
       await regenerateSummary(id)
       // Poll for completion — check every 5 seconds
@@ -385,6 +389,7 @@ export default function MeetingDetail() {
             clearInterval(pollInterval)
             setMeeting(res.data)
             setRegenerating(false)
+            toast('Minutes of Meeting ready', 'success')
           }
         } catch (e) {
           // keep polling
@@ -398,6 +403,7 @@ export default function MeetingDetail() {
       }, 120000)
     } catch (e) {
       setRegenerating(false)
+      toast('Failed to start summary generation', 'error')
     }
   }
 

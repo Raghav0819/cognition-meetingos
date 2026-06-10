@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from firebase_config import db
+from dateutil import parser as dparser
 import uuid
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -25,6 +26,26 @@ def get_all_tasks(x_company_id: str = Header(default="")):
         return []
     tasks = db.collection('tasks').where('companyId', '==', x_company_id).stream()
     return [{'id': t.id, **t.to_dict()} for t in tasks]
+
+
+@router.post("/check-overdue")
+def check_overdue(x_company_id: str = Header(default="")):
+    if not x_company_id:
+        return {"updated": 0}
+    today = datetime.now(timezone.utc).date()
+    pending = db.collection('tasks').where('companyId', '==', x_company_id).where('status', '==', 'pending').stream()
+    updated = 0
+    for snap in pending:
+        deadline_str = snap.to_dict().get('deadline', '')
+        if not deadline_str or deadline_str.upper() in ('TBD', 'N/A', 'NONE', ''):
+            continue
+        try:
+            if dparser.parse(deadline_str, fuzzy=True).date() < today:
+                db.collection('tasks').document(snap.id).update({'status': 'overdue'})
+                updated += 1
+        except Exception:
+            pass
+    return {"updated": updated}
 
 
 @router.get("/user/{name}")

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import { getMeetings, uploadTranscript } from '../api'
+import { getMeetings, uploadTranscript, checkOverdueTasks } from '../api'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 
 const STATUS = {
   processing: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)',  dot: '#fbbf24' },
@@ -104,17 +105,22 @@ function MeetingCard({ meeting, onClick }) {
 }
 
 export default function PMDashboard() {
-  const [meetings,   setMeetings]   = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [showUpload, setShowUpload] = useState(false)
-  const [form,       setForm]       = useState({ title: '', department: 'IT', participants: '', transcript: '' })
-  const [submitting, setSubmitting] = useState(false)
-  const [copied,     setCopied]     = useState(false)
-  const [fetchError, setFetchError] = useState('')
+  const [meetings,     setMeetings]     = useState([])
+  const [loading,      setLoading]      = useState(true)
+  const [showUpload,   setShowUpload]   = useState(false)
+  const [form,         setForm]         = useState({ title: '', department: 'IT', participants: '', transcript: '' })
+  const [submitting,   setSubmitting]   = useState(false)
+  const [copied,       setCopied]       = useState(false)
+  const [fetchError,   setFetchError]   = useState('')
+  const [search,       setSearch]       = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const navigate = useNavigate()
   const { userProfile } = useAuth()
+  const { toast } = useToast()
 
-  useEffect(() => { fetchMeetings() }, [])
+  useEffect(() => {
+    checkOverdueTasks().catch(() => {}).finally(fetchMeetings)
+  }, [])
 
   useEffect(() => {
     const hasProcessing = meetings.some(m => m.status === 'processing')
@@ -128,7 +134,9 @@ export default function PMDashboard() {
       setMeetings(res.data)
       setFetchError('')
     } catch (err) {
-      setFetchError(err?.response?.data?.detail || 'Failed to load meetings.')
+      const msg = err?.response?.data?.detail || 'Failed to load meetings.'
+      setFetchError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -144,7 +152,10 @@ export default function PMDashboard() {
       await uploadTranscript({ ...form, participants })
       setShowUpload(false)
       setForm({ title: '', department: 'IT', participants: '', transcript: '' })
+      toast('Meeting uploaded — AI agents are processing it now', 'success')
       setTimeout(fetchMeetings, 2000)
+    } catch {
+      toast('Failed to upload transcript. Check your connection.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -153,6 +164,17 @@ export default function PMDashboard() {
   const totalTasks = meetings.reduce((s, m) => s + (m.task_count || 0), 0)
   const processing = meetings.filter(m => m.status === 'processing').length
   const completed  = meetings.filter(m => m.status === 'completed').length
+
+  const filteredMeetings = useMemo(() => {
+    const q = search.toLowerCase()
+    return meetings.filter(m => {
+      const matchesSearch = !q ||
+        m.title.toLowerCase().includes(q) ||
+        m.department.toLowerCase().includes(q)
+      const matchesStatus = statusFilter === 'all' || m.status === statusFilter
+      return matchesSearch && matchesStatus
+    })
+  }, [meetings, search, statusFilter])
 
   return (
     <div style={{ minHeight: '100vh', background: '#07070f' }}>
@@ -368,6 +390,67 @@ export default function PMDashboard() {
           </div>
         )}
 
+        {/* Search + filter bar */}
+        {!loading && meetings.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+            {/* Search input */}
+            <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
+              <span style={{
+                position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                color: '#4b5563', fontSize: 13, pointerEvents: 'none'
+              }}>
+                ⌕
+              </span>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by title or department…"
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.09)',
+                  borderRadius: 10, color: '#e5e7eb',
+                  fontSize: 13, padding: '9px 12px 9px 32px', outline: 'none',
+                  transition: 'border-color 0.15s',
+                }}
+                onFocus={e => e.target.style.borderColor = 'rgba(124,58,237,0.5)'}
+                onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.09)'}
+              />
+            </div>
+
+            {/* Status filter pills */}
+            <div style={{
+              display: 'flex', gap: 4,
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 10, padding: 4,
+            }}>
+              {['all', 'processing', 'completed', 'failed'].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 7, border: 'none',
+                    fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s',
+                    background: statusFilter === s ? 'rgba(124,58,237,0.25)' : 'transparent',
+                    color: statusFilter === s ? '#c4b5fd' : '#6b7280',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {s === 'all' ? `All (${meetings.length})` : s}
+                </button>
+              ))}
+            </div>
+
+            {/* Result count when filtered */}
+            {(search || statusFilter !== 'all') && (
+              <span style={{ color: '#4b5563', fontSize: 12, whiteSpace: 'nowrap' }}>
+                {filteredMeetings.length} result{filteredMeetings.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Meeting grid */}
         {loading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -394,9 +477,22 @@ export default function PMDashboard() {
               Upload a transcript or record via the Chrome Extension
             </p>
           </div>
+        ) : filteredMeetings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 0' }}>
+            <p style={{ color: '#4b5563', fontSize: 14, margin: 0 }}>No meetings match your search</p>
+            <button
+              onClick={() => { setSearch(''); setStatusFilter('all') }}
+              style={{
+                marginTop: 10, background: 'none', border: 'none',
+                color: '#7c3aed', fontSize: 13, cursor: 'pointer'
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-            {meetings.map((m, i) => (
+            {filteredMeetings.map((m, i) => (
               <div key={m.id} className="anim-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
                 <MeetingCard meeting={m} onClick={() => navigate(`/meeting/${m.id}`)} />
               </div>

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import Navbar from '../components/Navbar'
 import TaskCard from '../components/TaskCard'
-import { getUserTasks, updateTaskStatus } from '../api'
+import { getUserTasks, updateTaskStatus, checkOverdueTasks } from '../api'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 
 function ProgressRing({ done, total, size = 96, thickness = 7 }) {
   const r = (size - thickness) / 2
@@ -43,12 +44,15 @@ function ProgressRing({ done, total, size = 96, thickness = 7 }) {
 
 export default function EmployeeDashboard() {
   const { userProfile } = useAuth()
+  const { toast } = useToast()
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
 
-  useEffect(() => { fetchTasks() }, [])
+  useEffect(() => {
+    checkOverdueTasks().catch(() => {}).finally(fetchTasks)
+  }, [])
 
   async function fetchTasks() {
     try {
@@ -61,6 +65,8 @@ export default function EmployeeDashboard() {
 
   async function handleStatusChange(taskId, status) {
     await updateTaskStatus(taskId, { status })
+    const labels = { done: 'marked as done', overdue: 'marked as overdue', escalated: 'escalated', pending: 'set to pending' }
+    toast(`Task ${labels[status] || status}`, status === 'done' ? 'success' : 'info')
     fetchTasks()
   }
 
