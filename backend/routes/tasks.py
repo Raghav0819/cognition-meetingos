@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
@@ -20,14 +20,21 @@ class TaskStatusUpdate(BaseModel):
 
 
 @router.get("/")
-def get_all_tasks():
-    tasks = db.collection('tasks').stream()
+def get_all_tasks(x_company_id: str = Header(default="")):
+    if not x_company_id:
+        return []
+    tasks = db.collection('tasks').where('companyId', '==', x_company_id).stream()
     return [{'id': t.id, **t.to_dict()} for t in tasks]
 
 
 @router.get("/user/{name}")
-def get_tasks_for_user(name: str):
-    tasks = db.collection('tasks').where('assigned_to', '==', name).stream()
+def get_tasks_for_user(name: str, x_company_id: str = Header(default="")):
+    if not x_company_id:
+        return []
+    tasks = (db.collection('tasks')
+               .where('companyId', '==', x_company_id)
+               .where('assigned_to', '==', name)
+               .stream())
     return [{'id': t.id, **t.to_dict()} for t in tasks]
 
 

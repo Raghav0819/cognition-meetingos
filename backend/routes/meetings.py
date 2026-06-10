@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
@@ -49,7 +49,11 @@ def process_with_crew(meeting_id: str, transcript: str, participants: list):
 
 
 @router.post("/upload-transcript")
-def upload_transcript(data: TranscriptUpload, background_tasks: BackgroundTasks):
+def upload_transcript(
+    data: TranscriptUpload,
+    background_tasks: BackgroundTasks,
+    x_company_id: str = Header(default="")
+):
     meeting_id = uuid.uuid4().hex[:8]
     meeting_ref = db.collection('meetings').document(meeting_id)
 
@@ -59,7 +63,8 @@ def upload_transcript(data: TranscriptUpload, background_tasks: BackgroundTasks)
         'transcript': data.transcript,
         'mom': '',
         'status': 'processing',
-        'date': datetime.utcnow()
+        'date': datetime.utcnow(),
+        'companyId': x_company_id,
     })
 
     participants_list = []
@@ -88,8 +93,11 @@ def upload_transcript(data: TranscriptUpload, background_tasks: BackgroundTasks)
 
 
 @router.get("/")
-def get_all_meetings():
-    docs = db.collection('meetings').order_by('date', direction='DESCENDING').stream()
+def get_all_meetings(x_company_id: str = Header(default="")):
+    if not x_company_id:
+        return []
+    docs = list(db.collection('meetings').where('companyId', '==', x_company_id).stream())
+    docs.sort(key=lambda d: d.to_dict().get('date') or datetime.min, reverse=True)
     result = []
     for doc in docs:
         m = doc.to_dict()

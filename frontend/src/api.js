@@ -2,6 +2,13 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'https://cognition-meetingos.onrender.com' })
 
+// Attach company ID to every request so the backend scopes data correctly
+api.interceptors.request.use(config => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  if (user.companyId) config.headers['X-Company-ID'] = user.companyId
+  return config
+})
+
 export const getMeetings       = ()         => api.get('/meetings/')
 export const getMeeting        = (id)       => api.get(`/meetings/${id}`)
 export const getMeetingLogs    = (id)       => api.get(`/meetings/${id}/logs`)

@@ -9,7 +9,10 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import {
+  doc, setDoc, getDoc, updateDoc,
+  collection, query, where, getDocs,
+} from 'firebase/firestore'
 import { auth, firestore } from '../firebase'
 
 const ROLE_ROUTES = { pm: '/pm', employee: '/employee', manager: '/manager' }
@@ -33,8 +36,11 @@ function friendlyError(code) {
   }
 }
 
-// ─── Sub-screens ─────────────────────────────────────────────────────────────
+function genInviteCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase()
+}
 
+// ─── Verify Email Screen ──────────────────────────────────────────────────────
 function VerifyEmailScreen({ email, onBack }) {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
@@ -58,46 +64,172 @@ function VerifyEmailScreen({ email, onBack }) {
   )
 }
 
+// ─── Google Role Picker ───────────────────────────────────────────────────────
 function GoogleRolePickerScreen({ googleUser, onSelect, loading, error }) {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mx-auto mb-4 text-2xl">
-            {googleUser.photoURL
-              ? <img src={googleUser.photoURL} className="w-16 h-16 rounded-full" alt="" />
-              : '👋'}
-          </div>
+          {googleUser.photoURL
+            ? <img src={googleUser.photoURL} className="w-16 h-16 rounded-full mx-auto mb-4" alt="" />
+            : <div className="text-4xl mb-4">👋</div>}
           <h2 className="text-2xl font-bold text-white">
             Welcome, {googleUser.displayName || 'there'}!
           </h2>
-          <p className="text-gray-400 mt-2 text-sm">Select your role to complete setup</p>
+          <p className="text-gray-400 mt-2 text-sm">Select your role to continue</p>
         </div>
-
-        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-          <div className="flex flex-col gap-3">
-            {ROLES.map(r => (
-              <button
-                key={r.value}
-                onClick={() => onSelect(r.value)}
-                disabled={loading}
-                className="w-full py-4 px-5 rounded-xl text-white font-medium flex items-center justify-between hover:opacity-90 transition bg-gray-800 border border-gray-700 hover:border-gray-500 disabled:opacity-50"
-              >
-                <span className="text-base">{r.label}</span>
-                <span className={`text-xs px-3 py-1 rounded-full text-white ${r.color}`}>{r.value}</span>
-              </button>
-            ))}
-          </div>
-          {error && <p className="text-red-400 text-xs mt-4 text-center">{error}</p>}
-          {loading && <p className="text-gray-400 text-xs mt-4 text-center">Setting up your account...</p>}
+        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800 flex flex-col gap-3">
+          {ROLES.map(r => (
+            <button
+              key={r.value} onClick={() => onSelect(r.value)} disabled={loading}
+              className="w-full py-4 px-5 rounded-xl text-white font-medium flex items-center justify-between hover:opacity-90 transition bg-gray-800 border border-gray-700 hover:border-gray-500 disabled:opacity-50"
+            >
+              <span>{r.label}</span>
+              <span className={`text-xs px-3 py-1 rounded-full text-white ${r.color}`}>{r.value}</span>
+            </button>
+          ))}
+          {error && <p className="text-red-400 text-xs text-center mt-2">{error}</p>}
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Main Login Component ─────────────────────────────────────────────────────
+// ─── Company Setup Screen ─────────────────────────────────────────────────────
+function CompanySetupScreen({ uid, role, onDone }) {
+  const [companyName, setCompanyName] = useState('')
+  const [inviteCode,  setInviteCode]  = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState('')
+  const [createdCode, setCreatedCode] = useState('')  // shown after PM creates company
 
+  const isPM = role === 'pm'
+
+  async function createCompany(e) {
+    e.preventDefault()
+    if (!companyName.trim()) return setError('Enter your company name.')
+    setLoading(true)
+    setError('')
+    try {
+      const code      = genInviteCode()
+      const companyId = `co_${Math.random().toString(36).substring(2, 10)}`
+      await setDoc(doc(firestore, 'companies', companyId), {
+        name:      companyName.trim(),
+        inviteCode: code,
+        createdBy: uid,
+        createdAt: new Date(),
+      })
+      await updateDoc(doc(firestore, 'users', uid), { companyId })
+      const profile = JSON.parse(localStorage.getItem('user') || '{}')
+      localStorage.setItem('user', JSON.stringify({ ...profile, companyId }))
+      setCreatedCode(code)
+      setTimeout(() => onDone(), 3000)
+    } catch {
+      setError('Failed to create company. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function joinCompany(e) {
+    e.preventDefault()
+    const code = inviteCode.trim().toUpperCase()
+    if (!code) return setError('Enter an invite code.')
+    setLoading(true)
+    setError('')
+    try {
+      const q    = query(collection(firestore, 'companies'), where('inviteCode', '==', code))
+      const snap = await getDocs(q)
+      if (snap.empty) {
+        setError('Invalid invite code. Ask your PM for the correct code.')
+        setLoading(false)
+        return
+      }
+      const companyId = snap.docs[0].id
+      await updateDoc(doc(firestore, 'users', uid), { companyId })
+      const profile = JSON.parse(localStorage.getItem('user') || '{}')
+      localStorage.setItem('user', JSON.stringify({ ...profile, companyId }))
+      onDone()
+    } catch {
+      setError('Failed to join company. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (createdCode) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+        <div className="max-w-md w-full text-center">
+          <div className="text-5xl mb-6">🎉</div>
+          <h2 className="text-2xl font-bold text-white mb-3">Company created!</h2>
+          <p className="text-gray-400 mb-4">Share this invite code with your team:</p>
+          <div className="bg-gray-900 border border-purple-700 rounded-2xl px-8 py-6 mb-6 inline-block">
+            <p className="text-4xl font-mono font-bold tracking-widest text-purple-300">{createdCode}</p>
+          </div>
+          <p className="text-gray-500 text-sm">Redirecting you to the dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="text-4xl mb-3">{isPM ? '🏢' : '👥'}</div>
+          <h2 className="text-2xl font-bold text-white">
+            {isPM ? 'Set up your company' : 'Join your company'}
+          </h2>
+          <p className="text-gray-400 mt-2 text-sm">
+            {isPM
+              ? 'Create a workspace for your team. You\'ll get an invite code to share.'
+              : 'Ask your PM for the invite code to join your team\'s workspace.'}
+          </p>
+        </div>
+
+        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
+          <form onSubmit={isPM ? createCompany : joinCompany} className="flex flex-col gap-4">
+            {isPM ? (
+              <div>
+                <label className="text-gray-400 text-xs mb-1.5 block">Company Name</label>
+                <input
+                  type="text" value={companyName} onChange={e => setCompanyName(e.target.value)}
+                  placeholder="e.g. Acme Corp" required
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="text-gray-400 text-xs mb-1.5 block">Invite Code</label>
+                <input
+                  type="text" value={inviteCode} onChange={e => setInviteCode(e.target.value)}
+                  placeholder="e.g. A3B9XZ" maxLength={6} required
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm font-mono tracking-widest uppercase"
+                />
+              </div>
+            )}
+
+            {error && (
+              <p className="text-red-400 text-xs bg-red-900/30 border border-red-800 rounded-xl px-4 py-3">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit" disabled={loading}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition text-sm"
+            >
+              {loading ? 'Please wait...' : isPM ? 'Create Company' : 'Join Company'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Login ───────────────────────────────────────────────────────────────
 export default function Login() {
   const navigate = useNavigate()
 
@@ -110,11 +242,19 @@ export default function Login() {
   const [error,       setError]       = useState('')
   const [loading,     setLoading]     = useState(false)
 
-  // Sub-screen states
-  const [verifyEmail,  setVerifyEmail]  = useState('')    // non-empty = show verify screen
-  const [googleUser,   setGoogleUser]   = useState(null)  // non-null = show role picker
+  const [verifyEmail,     setVerifyEmail]     = useState('')
+  const [googleUser,      setGoogleUser]      = useState(null)
+  const [companySetupFor, setCompanySetupFor] = useState(null)  // { uid, role }
 
-  // Redirect if already fully authenticated
+  function redirectOrSetupCompany(profile, uid) {
+    if (!profile.companyId) {
+      setCompanySetupFor({ uid, role: profile.role })
+    } else {
+      navigate(ROLE_ROUTES[profile.role] || '/pm', { replace: true })
+    }
+  }
+
+  // Redirect already-authenticated users
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) return
@@ -122,27 +262,24 @@ export default function Login() {
       if (snap.exists()) {
         const profile = snap.data()
         localStorage.setItem('user', JSON.stringify(profile))
-        navigate(ROLE_ROUTES[profile.role] || '/pm', { replace: true })
+        redirectOrSetupCompany(profile, u.uid)
       }
     })
     return () => unsub()
-  }, [navigate])
+  }, [])
 
-  // ── Email Sign Up ──────────────────────────────────────────────────────────
+  // ── Email Sign Up ────────────────────────────────────────────────────────────
   async function handleSignUp(e) {
     e.preventDefault()
     setError('')
-    if (!name.trim())               return setError('Please enter your full name.')
-    if (password !== confirmPass)   return setError('Passwords do not match.')
-    if (password.length < 6)        return setError('Password must be at least 6 characters.')
-
+    if (!name.trim())             return setError('Please enter your full name.')
+    if (password !== confirmPass) return setError('Passwords do not match.')
+    if (password.length < 6)      return setError('Password must be at least 6 characters.')
     setLoading(true)
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password)
       await sendEmailVerification(cred.user)
-      await setDoc(doc(firestore, 'users', cred.user.uid), {
-        name: name.trim(), role, email
-      })
+      await setDoc(doc(firestore, 'users', cred.user.uid), { name: name.trim(), role, email })
       await signOut(auth)
       setVerifyEmail(email)
     } catch (err) {
@@ -152,29 +289,27 @@ export default function Login() {
     }
   }
 
-  // ── Email Sign In ──────────────────────────────────────────────────────────
+  // ── Email Sign In ────────────────────────────────────────────────────────────
   async function handleSignIn(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password)
-
       if (!cred.user.emailVerified) {
         await signOut(auth)
-        setError('Email not verified. Check your inbox and click the verification link before signing in.')
+        setError('Email not verified. Check your inbox and click the verification link.')
         return
       }
-
       const snap = await getDoc(doc(firestore, 'users', cred.user.uid))
       if (!snap.exists()) {
-        setError('Account profile not found. Please sign up again.')
         await signOut(auth)
+        setError('Account not found. Please sign up again.')
         return
       }
       const profile = snap.data()
       localStorage.setItem('user', JSON.stringify(profile))
-      navigate(ROLE_ROUTES[profile.role] || '/pm')
+      redirectOrSetupCompany(profile, cred.user.uid)
     } catch (err) {
       setError(friendlyError(err.code))
     } finally {
@@ -182,31 +317,28 @@ export default function Login() {
     }
   }
 
-  // ── Google Sign In ─────────────────────────────────────────────────────────
+  // ── Google Sign In ───────────────────────────────────────────────────────────
   async function handleGoogle() {
     setError('')
     setLoading(true)
     try {
       const cred = await signInWithPopup(auth, new GoogleAuthProvider())
       const snap = await getDoc(doc(firestore, 'users', cred.user.uid))
-
       if (snap.exists()) {
         const profile = snap.data()
         localStorage.setItem('user', JSON.stringify(profile))
-        navigate(ROLE_ROUTES[profile.role] || '/pm')
+        redirectOrSetupCompany(profile, cred.user.uid)
       } else {
         setGoogleUser(cred.user)
       }
     } catch (err) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setError(friendlyError(err.code))
-      }
+      if (err.code !== 'auth/popup-closed-by-user') setError(friendlyError(err.code))
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Google Role Select ─────────────────────────────────────────────────────
+  // ── Google: save role, then check company ────────────────────────────────────
   async function handleGoogleRoleSelect(selectedRole) {
     setLoading(true)
     try {
@@ -217,14 +349,15 @@ export default function Login() {
       }
       await setDoc(doc(firestore, 'users', googleUser.uid), profile)
       localStorage.setItem('user', JSON.stringify(profile))
-      navigate(ROLE_ROUTES[selectedRole])
+      setGoogleUser(null)
+      redirectOrSetupCompany(profile, googleUser.uid)
     } catch {
-      setError('Failed to save profile. Please try again.')
+      setError('Failed to save profile. Try again.')
       setLoading(false)
     }
   }
 
-  // ── Sub-screen renders ─────────────────────────────────────────────────────
+  // ── Sub-screens ──────────────────────────────────────────────────────────────
   if (verifyEmail) {
     return (
       <VerifyEmailScreen
@@ -245,7 +378,20 @@ export default function Login() {
     )
   }
 
-  // ── Main form ──────────────────────────────────────────────────────────────
+  if (companySetupFor) {
+    return (
+      <CompanySetupScreen
+        uid={companySetupFor.uid}
+        role={companySetupFor.role}
+        onDone={() => {
+          const profile = JSON.parse(localStorage.getItem('user') || '{}')
+          navigate(ROLE_ROUTES[profile.role] || '/pm', { replace: true })
+        }}
+      />
+    )
+  }
+
+  // ── Main form ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
@@ -255,12 +401,10 @@ export default function Login() {
         </div>
 
         <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-          {/* Tab toggle */}
           <div className="flex mb-6 bg-gray-800 rounded-xl p-1">
             {[['signin', 'Sign In'], ['signup', 'Sign Up']].map(([m, label]) => (
               <button
-                key={m}
-                onClick={() => { setMode(m); setError('') }}
+                key={m} onClick={() => { setMode(m); setError('') }}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${mode === m ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
               >
                 {label}
@@ -306,11 +450,9 @@ export default function Login() {
                     type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
                     placeholder="Re-enter your password" required
                     className={`w-full bg-gray-800 border rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none text-sm transition ${
-                      confirmPass && password !== confirmPass
-                        ? 'border-red-600 focus:border-red-500'
-                        : confirmPass && password === confirmPass
-                        ? 'border-green-600 focus:border-green-500'
-                        : 'border-gray-700 focus:border-purple-500'
+                      confirmPass && password !== confirmPass ? 'border-red-600' :
+                      confirmPass && password === confirmPass ? 'border-green-600' :
+                      'border-gray-700 focus:border-purple-500'
                     }`}
                   />
                   {confirmPass && password !== confirmPass && (
@@ -325,9 +467,7 @@ export default function Login() {
                       <button
                         key={r.value} type="button" onClick={() => setRole(r.value)}
                         className={`flex-1 py-2 rounded-xl text-xs font-semibold text-white transition border ${
-                          role === r.value
-                            ? `${r.color} border-transparent`
-                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+                          role === r.value ? `${r.color} border-transparent` : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
                         }`}
                       >
                         {r.label}
@@ -351,9 +491,7 @@ export default function Login() {
                         await signOut(auth)
                         setError('')
                         setVerifyEmail(email)
-                      } catch {
-                        setError('Could not resend. Check your email and password.')
-                      }
+                      } catch { setError('Could not resend. Check your credentials.') }
                     }}
                     className="block mt-2 text-purple-400 underline hover:text-purple-300"
                   >
@@ -371,17 +509,15 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Divider */}
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px bg-gray-800" />
             <span className="text-gray-600 text-xs">or</span>
             <div className="flex-1 h-px bg-gray-800" />
           </div>
 
-          {/* Google */}
           <button
             onClick={handleGoogle} disabled={loading}
-            className="w-full py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition text-sm font-medium flex items-center justify-center gap-3"
+            className="w-full py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 disabled:opacity-50 text-white rounded-xl transition text-sm font-medium flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

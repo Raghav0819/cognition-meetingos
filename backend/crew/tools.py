@@ -32,18 +32,22 @@ class SaveTasksTool(BaseTool):
     def _run(self, meeting_id: str, tasks_json: str) -> str:
         try:
             from firebase_config import db
+            meeting_doc = db.collection('meetings').document(meeting_id).get()
+            company_id  = meeting_doc.to_dict().get('companyId', '') if meeting_doc.exists else ''
+
             tasks = json.loads(tasks_json)
             for t in tasks:
                 task_id = uuid.uuid4().hex[:8]
                 db.collection('tasks').document(task_id).set({
-                    'meeting_id': meeting_id,
-                    'title': t.get('title', 'Untitled Task'),
+                    'meeting_id':  meeting_id,
+                    'companyId':   company_id,
+                    'title':       t.get('title', 'Untitled Task'),
                     'description': t.get('description', ''),
                     'assigned_to': t.get('assigned_to', 'Unassigned'),
-                    'deadline': t.get('deadline', 'TBD'),
-                    'status': 'pending',
-                    'confidence': float(t.get('confidence', 50)),
-                    'validated': 'pending',
+                    'deadline':    t.get('deadline', 'TBD'),
+                    'status':      'pending',
+                    'confidence':  float(t.get('confidence', 50)),
+                    'validated':   'pending',
                     'escalated_to': None
                 })
             return f"Saved {len(tasks)} tasks to Firestore"
