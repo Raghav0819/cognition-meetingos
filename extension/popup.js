@@ -1,4 +1,4 @@
-const BACKEND = 'http://localhost:8000'
+const BACKEND = 'https://cognition-meetingos.onrender.com'
 
 let isRecording = false
 
@@ -142,7 +142,7 @@ btnSend.addEventListener('click', () => {
           showMessage(`Error: ${JSON.stringify(data)}`, 'error')
         }
       } catch (err) {
-        showMessage(`Cannot reach backend. Is it running on port 8000? Error: ${err.message}`, 'error')
+        showMessage(`Cannot reach backend. Check if Render is awake. Error: ${err.message}`, 'error')
       } finally {
         btnSend.disabled = false
       }
