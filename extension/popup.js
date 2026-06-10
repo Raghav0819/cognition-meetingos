@@ -13,6 +13,30 @@ const msgBox        = document.getElementById('message')
 const partList      = document.getElementById('participantList')
 const titleInput    = document.getElementById('meetingTitle')
 const deptInput     = document.getElementById('department')
+const companyInput  = document.getElementById('companyId')
+const companyLabel  = document.getElementById('companyLabel')
+
+// Load saved company ID from chrome storage
+chrome.storage.local.get(['companyId'], result => {
+  if (result.companyId) {
+    companyInput.value = result.companyId
+    companyLabel.textContent = '✓ Company ID'
+    companyLabel.style.color = '#4ade80'
+  }
+})
+
+// Save company ID whenever it changes
+companyInput.addEventListener('change', () => {
+  const val = companyInput.value.trim()
+  chrome.storage.local.set({ companyId: val })
+  if (val) {
+    companyLabel.textContent = '✓ Company ID saved'
+    companyLabel.style.color = '#4ade80'
+  } else {
+    companyLabel.textContent = '⚠ Company ID (paste from PM Dashboard)'
+    companyLabel.style.color = '#f87171'
+  }
+})
 
 function showMessage(text, type = '') {
   msgBox.textContent = text
@@ -43,7 +67,7 @@ btnRecord.addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
     if (!tabs[0]) return showMessage('No active tab found', 'error')
 
-    chrome.tabs.sendMessage(tabs[0].id, { action: 'START_RECORDING' }, res => {
+    chrome.tabs.sendMessage(tabs[0].id, { action: 'START_RECORDING' }, () => {
       if (chrome.runtime.lastError) {
         return showMessage('Make sure you are on Google Meet', 'error')
       }
@@ -63,7 +87,7 @@ btnStop.addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
     if (!tabs[0]) return
 
-    chrome.tabs.sendMessage(tabs[0].id, { action: 'STOP_RECORDING' }, res => {
+    chrome.tabs.sendMessage(tabs[0].id, { action: 'STOP_RECORDING' }, () => {
       isRecording = false
       clearInterval(pollInterval)
       dot.classList.remove('active')
@@ -102,27 +126,21 @@ btnSend.addEventListener('click', () => {
         participants.push({ name: 'Unknown', role: 'employee' })
       }
 
+      const companyId = companyInput.value.trim()
+      if (!companyId) {
+        return showMessage('⚠ Please enter your Company ID first (copy from PM Dashboard)', 'error')
+      }
+
       showMessage('Sending to CrewAI agents...')
       btnSend.disabled = true
-
-      // ===== DEBUG: See exact JSON being sent =====
-     const debugPayload = {
-       title,
-       department: dept,
-       participants,
-       transcript: res.transcript
-     }
-     console.log('=== PAYLOAD SENT TO CREWAI ===')
-     console.log(JSON.stringify(debugPayload, null, 2))
-     console.log('Participant count:', participants.length)
-     console.log('Transcript lines:', res.transcript.split('\n').length)
-     console.log('==============================')
-// ============================================
 
       try {
         const response = await fetch(`${BACKEND}/meetings/upload-transcript`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Company-ID': companyId,
+          },
           body: JSON.stringify({
             title,
             department: dept,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import { getMeetings, uploadTranscript } from '../api'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function PMDashboard() {
   const [meetings,    setMeetings]    = useState([])
@@ -9,14 +10,29 @@ export default function PMDashboard() {
   const [showUpload,  setShowUpload]  = useState(false)
   const [form,        setForm]        = useState({ title: '', department: 'IT', participants: '', transcript: '' })
   const [submitting,  setSubmitting]  = useState(false)
+  const [copied,      setCopied]      = useState(false)
+  const [fetchError,  setFetchError]  = useState('')
   const navigate = useNavigate()
+  const { userProfile } = useAuth()
 
-  useEffect(() => { fetchMeetings() }, [])
+  useEffect(() => {
+    fetchMeetings()
+  }, [])
+
+  // Auto-poll: fast when something is processing, slow otherwise
+  useEffect(() => {
+    const hasProcessing = meetings.some(m => m.status === 'processing')
+    const interval = setInterval(fetchMeetings, hasProcessing ? 5000 : 12000)
+    return () => clearInterval(interval)
+  }, [meetings])
 
   async function fetchMeetings() {
     try {
       const res = await getMeetings()
       setMeetings(res.data)
+      setFetchError('')
+    } catch (err) {
+      setFetchError(err?.response?.data?.detail || 'Failed to load meetings. Check backend connection.')
     } finally {
       setLoading(false)
     }
@@ -54,12 +70,21 @@ export default function PMDashboard() {
             <h2 className="text-2xl font-bold text-white">All Meetings</h2>
             <p className="text-gray-500 mt-1">Click any meeting to review AI-extracted tasks</p>
           </div>
-          <button
-            onClick={() => setShowUpload(!showUpload)}
-            className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition"
-          >
-            + Upload Transcript
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchMeetings}
+              className="text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-2.5 rounded-xl transition"
+              title="Refresh"
+            >
+              ↻
+            </button>
+            <button
+              onClick={() => setShowUpload(!showUpload)}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl font-medium transition"
+            >
+              + Upload Transcript
+            </button>
+          </div>
         </div>
 
         {showUpload && (
@@ -119,6 +144,38 @@ export default function PMDashboard() {
                 className="text-gray-400 hover:text-white px-4 py-2 transition"
               >Cancel</button>
             </div>
+          </div>
+        )}
+
+        {/* Company ID banner for extension setup */}
+        {userProfile?.companyId && (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4 mb-6 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-gray-400 text-xs mb-1">Chrome Extension — Company ID</p>
+              <p className="text-purple-300 font-mono text-sm">{userProfile.companyId}</p>
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(userProfile.companyId)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+              className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 transition shrink-0"
+            >
+              {copied ? '✓ Copied!' : 'Copy ID'}
+            </button>
+          </div>
+        )}
+
+        {!userProfile?.companyId && (
+          <div className="bg-yellow-900/20 border border-yellow-800 rounded-xl px-5 py-4 mb-6 text-yellow-300 text-sm">
+            ⚠ No company linked to your account. Please sign out and complete the company setup.
+          </div>
+        )}
+
+        {fetchError && (
+          <div className="bg-red-900/20 border border-red-800 rounded-xl px-5 py-3 mb-6 text-red-400 text-sm">
+            {fetchError}
           </div>
         )}
 

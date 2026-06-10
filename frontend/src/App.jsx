@@ -10,6 +10,7 @@ import MeetingDetail     from './pages/MeetingDetail'
 function ProtectedRoute({ children }) {
   const { user, userProfile } = useAuth()
   if (!user || !userProfile) return <Navigate to="/login" replace />
+  if (!userProfile.companyId)  return <Navigate to="/login" replace />
   return children
 }
 
