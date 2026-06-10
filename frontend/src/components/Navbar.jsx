@@ -6,7 +6,7 @@ export default function Navbar({ title }) {
 
   function logout() {
     localStorage.removeItem('user')
-    navigate('/')
+    navigate('/login')
   }
 
   return (

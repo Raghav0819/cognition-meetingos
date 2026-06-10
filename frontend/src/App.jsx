@@ -1,15 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import LandingPage       from './pages/LandingPage'
+import Login             from './pages/Login'
 import PMDashboard       from './pages/PMDashboard'
 import EmployeeDashboard from './pages/EmployeeDashboard'
 import ManagerDashboard  from './pages/ManagerDashboard'
 import MeetingDetail     from './pages/MeetingDetail'
-import Login             from './pages/Login'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"              element={<Login />} />
+        <Route path="/"              element={<LandingPage />} />
+        <Route path="/login"         element={<Login />} />
         <Route path="/pm"            element={<PMDashboard />} />
         <Route path="/employee"      element={<EmployeeDashboard />} />
         <Route path="/manager"       element={<ManagerDashboard />} />
