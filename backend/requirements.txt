@@ -29,6 +29,7 @@ docstring_parser==0.17.0
 durationpy==0.10
 et_xmlfile==2.0.0
 fastapi==0.135.2
+firebase-admin
 fastuuid==0.14.0
 filelock==3.25.2
 flatbuffers==25.12.19

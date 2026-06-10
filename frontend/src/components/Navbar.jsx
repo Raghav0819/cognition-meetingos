@@ -1,12 +1,19 @@
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Navbar({ title }) {
-  const navigate  = useNavigate()
-  const user      = JSON.parse(localStorage.getItem('user') || '{}')
+  const navigate = useNavigate()
+  const { userProfile, logout } = useAuth()
 
-  function logout() {
-    localStorage.removeItem('user')
+  async function handleLogout() {
+    await logout()
     navigate('/login')
+  }
+
+  const roleColors = {
+    pm:       'bg-purple-900 text-purple-300',
+    employee: 'bg-blue-900 text-blue-300',
+    manager:  'bg-green-900 text-green-300',
   }
 
   return (
@@ -16,9 +23,13 @@ export default function Navbar({ title }) {
         {title && <span className="text-gray-500 ml-3 text-sm">/ {title}</span>}
       </div>
       <div className="flex items-center gap-4">
-        <span className="text-gray-400 text-sm">{user.name}</span>
-        <span className="text-xs bg-purple-900 text-purple-300 px-3 py-1 rounded-full">{user.role}</span>
-        <button onClick={logout} className="text-gray-500 hover:text-white text-sm transition">Logout</button>
+        <span className="text-gray-400 text-sm">{userProfile?.name}</span>
+        <span className={`text-xs px-3 py-1 rounded-full ${roleColors[userProfile?.role] || 'bg-gray-800 text-gray-400'}`}>
+          {userProfile?.role}
+        </span>
+        <button onClick={handleLogout} className="text-gray-500 hover:text-white text-sm transition">
+          Logout
+        </button>
       </div>
     </div>
   )

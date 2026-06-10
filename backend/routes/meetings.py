@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
-from database import get_db
-from models import Meeting, Participant, Task, Log
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
+from firebase_config import db
+import uuid
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
+
 
 class ParticipantInput(BaseModel):
     name: str
@@ -23,10 +23,15 @@ class ChatMessage(BaseModel):
     message: str
 
 
+def _ts(dt):
+    """Convert datetime/Firestore timestamp to ISO string safely."""
+    if dt is None:
+        return None
+    return dt.isoformat() if hasattr(dt, 'isoformat') else str(dt)
+
+
 def process_with_crew(meeting_id: str, transcript: str, participants: list):
-    """Runs in background — calls CrewAI then updates DB with results"""
     import sys
-    # Fix Windows encoding issue — CrewAI verbose output uses Unicode box-drawing chars
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
@@ -34,145 +39,112 @@ def process_with_crew(meeting_id: str, transcript: str, participants: list):
         pass
 
     from crew.crew import run_meeting_crew
-    from database import SessionLocal
-    from models import Meeting
+    from firebase_config import db as fdb
 
     result = run_meeting_crew(meeting_id, transcript, participants)
-
-    db = SessionLocal()
-    try:
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if meeting:
-            meeting.status = result.get("status", "completed")
-            meeting.mom = result.get("mom", result.get("validation_summary", ""))
-            db.commit()
-    finally:
-        db.close()
+    fdb.collection('meetings').document(meeting_id).update({
+        'status': result.get('status', 'completed'),
+        'mom': result.get('mom', result.get('validation_summary', ''))
+    })
 
 
 @router.post("/upload-transcript")
-def upload_transcript(
-    data: TranscriptUpload,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    # 1. Save meeting
-    meeting = Meeting(
-        title=data.title,
-        department=data.department,
-        transcript=data.transcript,
-        status="processing"
-    )
-    db.add(meeting)
-    db.flush()
+def upload_transcript(data: TranscriptUpload, background_tasks: BackgroundTasks):
+    meeting_id = uuid.uuid4().hex[:8]
+    meeting_ref = db.collection('meetings').document(meeting_id)
 
-    # 2. Save participants
+    meeting_ref.set({
+        'title': data.title,
+        'department': data.department,
+        'transcript': data.transcript,
+        'mom': '',
+        'status': 'processing',
+        'date': datetime.utcnow()
+    })
+
     participants_list = []
     for p in data.participants:
-        participant = Participant(
-            meeting_id=meeting.id,
-            name=p.name,
-            role=p.role,
-            department=p.department
-        )
-        db.add(participant)
-        participants_list.append({"name": p.name, "role": p.role})
+        meeting_ref.collection('participants').document(uuid.uuid4().hex[:8]).set({
+            'name': p.name,
+            'role': p.role,
+            'department': p.department
+        })
+        participants_list.append({'name': p.name, 'role': p.role})
 
-    # 3. Log upload
-    log = Log(
-        meeting_id=meeting.id,
-        agent="System",
-        action=f"Meeting '{data.title}' uploaded. CrewAI processing started."
-    )
-    db.add(log)
-    db.commit()
-    db.refresh(meeting)
+    meeting_ref.collection('logs').document(uuid.uuid4().hex[:8]).set({
+        'agent': 'System',
+        'action': f"Meeting '{data.title}' uploaded. CrewAI processing started.",
+        'timestamp': datetime.utcnow()
+    })
 
-    # 4. Run CrewAI in background (so API returns immediately)
-    background_tasks.add_task(
-        process_with_crew,
-        meeting.id,
-        data.transcript,
-        participants_list
-    )
+    background_tasks.add_task(process_with_crew, meeting_id, data.transcript, participants_list)
 
     return {
-        "meeting_id": meeting.id,
-        "status": "processing",
-        "message": "Transcript received. CrewAI agents are now working...",
-        "participants": len(data.participants)
+        'meeting_id': meeting_id,
+        'status': 'processing',
+        'message': 'Transcript received. CrewAI agents are now working...',
+        'participants': len(data.participants)
     }
 
 
 @router.get("/")
-def get_all_meetings(db: Session = Depends(get_db)):
-    meetings = db.query(Meeting).order_by(Meeting.date.desc()).all()
-    return [
-        {
-            "id": m.id,
-            "title": m.title,
-            "department": m.department,
-            "date": m.date,
-            "status": m.status,
-            "task_count": len(m.tasks)
-        }
-        for m in meetings
-    ]
+def get_all_meetings():
+    docs = db.collection('meetings').order_by('date', direction='DESCENDING').stream()
+    result = []
+    for doc in docs:
+        m = doc.to_dict()
+        task_count = len(list(db.collection('tasks').where('meeting_id', '==', doc.id).stream()))
+        result.append({
+            'id': doc.id,
+            'title': m.get('title', ''),
+            'department': m.get('department', ''),
+            'date': _ts(m.get('date')),
+            'status': m.get('status', ''),
+            'task_count': task_count
+        })
+    return result
 
 
 @router.get("/{meeting_id}")
-def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
+def get_meeting(meeting_id: str):
+    doc = db.collection('meetings').document(meeting_id).get()
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
+    m = doc.to_dict()
+    meeting_ref = db.collection('meetings').document(meeting_id)
+
+    participants = [p.to_dict() for p in meeting_ref.collection('participants').stream()]
+    tasks_raw = db.collection('tasks').where('meeting_id', '==', meeting_id).stream()
+    tasks = [{'id': t.id, **t.to_dict()} for t in tasks_raw]
+    logs_raw = meeting_ref.collection('logs').order_by('timestamp').stream()
+    logs = [{'agent': l.to_dict().get('agent'), 'action': l.to_dict().get('action'), 'timestamp': _ts(l.to_dict().get('timestamp'))} for l in logs_raw]
+
     return {
-        "id": meeting.id,
-        "title": meeting.title,
-        "department": meeting.department,
-        "date": meeting.date,
-        "status": meeting.status,
-        "transcript": meeting.transcript,
-        "mom": meeting.mom,
-        "participants": [
-            {"name": p.name, "role": p.role}
-            for p in meeting.participants
-        ],
-        "tasks": [
-            {
-                "id": t.id,
-                "title": t.title,
-                "assigned_to": t.assigned_to,
-                "deadline": t.deadline,
-                "status": t.status,
-                "confidence": t.confidence,
-                "validated": t.validated
-            }
-            for t in meeting.tasks
-        ],
-        "logs": [
-            {"agent": l.agent, "action": l.action, "timestamp": l.timestamp}
-            for l in meeting.logs
-        ]
+        'id': meeting_id,
+        'title': m.get('title'),
+        'department': m.get('department'),
+        'date': _ts(m.get('date')),
+        'status': m.get('status'),
+        'transcript': m.get('transcript'),
+        'mom': m.get('mom'),
+        'participants': [{'name': p.get('name'), 'role': p.get('role')} for p in participants],
+        'tasks': tasks,
+        'logs': logs
     }
 
 
 @router.get("/{meeting_id}/logs")
-def get_meeting_logs(meeting_id: str, db: Session = Depends(get_db)):
-    logs = db.query(Log).filter(
-        Log.meeting_id == meeting_id
-    ).order_by(Log.timestamp).all()
+def get_meeting_logs(meeting_id: str):
+    logs = db.collection('meetings').document(meeting_id).collection('logs').order_by('timestamp').stream()
     return [
-        {"agent": l.agent, "action": l.action, "timestamp": l.timestamp}
+        {'agent': l.to_dict().get('agent'), 'action': l.to_dict().get('action'), 'timestamp': _ts(l.to_dict().get('timestamp'))}
         for l in logs
     ]
 
 
 def regenerate_summary_task(meeting_id: str):
-    """Runs in background — uses only the Summary Agent to regenerate the MoM"""
     import sys
-    # Fix Windows encoding issue — CrewAI verbose output uses Unicode box-drawing chars
-    # that crash cp1252 encoding on Windows
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
         sys.stderr.reconfigure(encoding='utf-8', errors='replace')
@@ -181,26 +153,24 @@ def regenerate_summary_task(meeting_id: str):
 
     from crew.agents import get_summary_agent
     from crewai import Crew, Process, Task
-    from database import SessionLocal
-    from models import Meeting, Log
+    from firebase_config import db as fdb
 
-    db = SessionLocal()
     try:
-        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-        if not meeting:
+        doc = fdb.collection('meetings').document(meeting_id).get()
+        if not doc.exists:
             return
 
-        transcript = meeting.transcript
-        participants = [
-            {"name": p.name, "role": p.role}
-            for p in meeting.participants
-        ]
-        participant_list = "\n".join([f"- {p['name']} ({p['role']})" for p in participants])
+        m = doc.to_dict()
+        transcript = m.get('transcript', '')
+        meeting_ref = fdb.collection('meetings').document(meeting_id)
 
-        # Get task data from existing tasks
+        participants = [p.to_dict() for p in meeting_ref.collection('participants').stream()]
+        tasks_docs = [t.to_dict() for t in fdb.collection('tasks').where('meeting_id', '==', meeting_id).stream()]
+
+        participant_list = "\n".join([f"- {p.get('name')} ({p.get('role')})" for p in participants])
         tasks_info = "\n".join([
-            f"- {t.title} (assigned to: {t.assigned_to}, deadline: {t.deadline}, confidence: {t.confidence})"
-            for t in meeting.tasks
+            f"- {t.get('title')} (assigned to: {t.get('assigned_to')}, deadline: {t.get('deadline')}, confidence: {t.get('confidence')})"
+            for t in tasks_docs
         ])
 
         summary_agent = get_summary_agent()
@@ -218,114 +188,69 @@ def regenerate_summary_task(meeting_id: str):
             EXTRACTED TASKS:
             {tasks_info}
 
-            Create a well-structured MoM with exactly these 5 sections, using the exact section headers shown:
+            Create a well-structured MoM with exactly these 5 sections:
 
             ## Executive Summary
-            Write 2-3 sentences summarizing what this meeting was about, who attended, and the overall outcome.
-
             ## Key Decisions
-            List each important decision that was made during the meeting as a bullet point.
-            If no explicit decisions were made, write "No formal decisions were recorded in this meeting."
-
             ## Action Items
-            Create a table-like list of all tasks. For each task include:
-            - Task name
-            - Assigned to (person)
-            - Deadline
-            - Priority (based on context: High/Medium/Low)
-
             ## Risks & Concerns
-            List any risks, blockers, or concerns raised during the meeting.
-            If none, write "No risks were identified."
-
             ## Next Steps
-            Write 2-4 bullet points about what happens after this meeting — follow-up meetings,
-            review dates, escalation timelines, etc.
 
-            IMPORTANT: Return ONLY the MoM text with the section headers as shown above.
-            Do NOT wrap it in JSON. Do NOT add any extra formatting or metadata.
-            Write it as clean, readable text that can be displayed directly to users.
+            Return ONLY the MoM text. Do NOT wrap it in JSON.
             """,
-            expected_output="A complete Minutes of Meeting document with Executive Summary, Key Decisions, Action Items, Risks & Concerns, and Next Steps sections",
+            expected_output="A complete Minutes of Meeting document with 5 sections",
             agent=summary_agent
         )
 
-        crew = Crew(
-            agents=[summary_agent],
-            tasks=[summarize],
-            process=Process.sequential,
-            verbose=False
-        )
+        crew = Crew(agents=[summary_agent], tasks=[summarize], process=Process.sequential, verbose=False)
+        mom_text = str(crew.kickoff())
 
-        result = crew.kickoff()
-        mom_text = str(result)
-
-        meeting.mom = mom_text
-
-        log = Log(
-            meeting_id=meeting_id,
-            agent="Summary Agent",
-            action="MoM regenerated for existing meeting."
-        )
-        db.add(log)
-        db.commit()
+        meeting_ref.update({'mom': mom_text})
+        meeting_ref.collection('logs').document(uuid.uuid4().hex[:8]).set({
+            'agent': 'Summary Agent',
+            'action': 'MoM regenerated for existing meeting.',
+            'timestamp': datetime.utcnow()
+        })
     except Exception as e:
         try:
-            log = Log(
-                meeting_id=meeting_id,
-                agent="System",
-                action=f"MoM regeneration failed: {str(e)}"
-            )
-            db.add(log)
-            db.commit()
+            fdb.collection('meetings').document(meeting_id).collection('logs').document(uuid.uuid4().hex[:8]).set({
+                'agent': 'System',
+                'action': f'MoM regeneration failed: {str(e)}',
+                'timestamp': datetime.utcnow()
+            })
         except Exception:
             pass
-    finally:
-        db.close()
 
 
 @router.post("/{meeting_id}/regenerate-summary")
-def regenerate_summary(
-    meeting_id: str,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
+def regenerate_summary(meeting_id: str, background_tasks: BackgroundTasks):
+    doc = db.collection('meetings').document(meeting_id).get()
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    if not meeting.transcript:
+    if not doc.to_dict().get('transcript'):
         raise HTTPException(status_code=400, detail="No transcript available to summarize")
 
-    # Log the regeneration request
-    log = Log(
-        meeting_id=meeting_id,
-        agent="System",
-        action="MoM regeneration requested by user."
-    )
-    db.add(log)
-    db.commit()
+    db.collection('meetings').document(meeting_id).collection('logs').document(uuid.uuid4().hex[:8]).set({
+        'agent': 'System',
+        'action': 'MoM regeneration requested by user.',
+        'timestamp': datetime.utcnow()
+    })
 
     background_tasks.add_task(regenerate_summary_task, meeting_id)
-
-    return {
-        "meeting_id": meeting_id,
-        "status": "regenerating",
-        "message": "Summary Agent is regenerating the MoM..."
-    }
+    return {'meeting_id': meeting_id, 'status': 'regenerating', 'message': 'Summary Agent is regenerating the MoM...'}
 
 
 @router.post("/{meeting_id}/chat")
-def chat_meeting(meeting_id: str, payload: ChatMessage, db: Session = Depends(get_db)):
-    import os
-    import json
-    import urllib.request
-    import urllib.error
-    
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
-    if not meeting:
+def chat_meeting(meeting_id: str, payload: ChatMessage):
+    import os, json, urllib.request, urllib.error
+
+    doc = db.collection('meetings').document(meeting_id).get()
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    if not meeting.transcript:
-        raise HTTPException(status_code=400, detail="No transcript available to search")
+
+    transcript = doc.to_dict().get('transcript', '')
+    if not transcript:
+        raise HTTPException(status_code=400, detail="No transcript available")
 
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -336,22 +261,20 @@ Answer the user's question based ONLY on the transcript provided below.
 If the answer cannot be found in the transcript, say "I cannot find the answer in the transcript."
 
 TRANSCRIPT:
-{meeting.transcript}
+{transcript}
 """
 
     try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        data = {
-            "model": "llama-3.3-70b-versatile",
-            "messages": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": payload.message}
-            ],
-            "temperature": 0.3
-        }
         req = urllib.request.Request(
-            url, 
-            data=json.dumps(data).encode("utf-8"), 
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps({
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": payload.message}
+                ],
+                "temperature": 0.3
+            }).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -360,11 +283,8 @@ TRANSCRIPT:
         )
         with urllib.request.urlopen(req) as response:
             result = json.loads(response.read().decode("utf-8"))
-        answer = result["choices"][0]["message"]["content"]
-        return {"response": answer}
+        return {"response": result["choices"][0]["message"]["content"]}
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode('utf-8')
-        raise HTTPException(status_code=500, detail=f"Groq API Error: {error_body}")
+        raise HTTPException(status_code=500, detail=f"Groq API Error: {e.read().decode('utf-8')}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-

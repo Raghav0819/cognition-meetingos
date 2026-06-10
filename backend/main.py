@@ -1,24 +1,19 @@
 import os
-import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import engine, Base
 from dotenv import load_dotenv
 
 load_dotenv()
 
-import models
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title="Cognition MeetingOS",
     description="AI system that turns meetings into execution",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://cognition-meetingos.vercel.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
