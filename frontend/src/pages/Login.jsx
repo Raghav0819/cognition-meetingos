@@ -122,7 +122,7 @@ function CompanySetupScreen({ uid, role, onDone }) {
         createdAt: new Date(),
         expiresAt: expiresAt,
       })
-      await updateDoc(doc(firestore, 'users', uid), { companyId })
+      await updateDoc(doc(firestore, 'users', uid), { companyId, updatedAt: serverTimestamp() })
       const profile = JSON.parse(localStorage.getItem('user') || '{}')
       localStorage.setItem('user', JSON.stringify({ ...profile, companyId }))
       setCreatedCode(code)
