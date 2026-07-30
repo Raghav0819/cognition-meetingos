@@ -172,3 +172,44 @@ def regenerate_invite_code(
         "inviteCode": new_code,
         "expiresAt": new_expiry.isoformat(),
     }
+
+
+# ── Remove Team Member ────────────────────────────────────────────────────────
+
+@router.delete("/team/{target_uid}")
+def remove_team_member(
+    target_uid: str,
+    uid: str = Depends(get_current_user_uid),
+    company_id: str = Depends(get_current_company_id),
+):
+    """
+    Remove a user from the company.
+    PM can remove anyone except themselves.
+    Manager can only remove employees.
+    """
+    if target_uid == uid:
+        raise HTTPException(status_code=400, detail="You cannot remove yourself")
+
+    caller_profile = _get_user_profile(uid)
+    _require_role(caller_profile, ['pm', 'manager'])
+
+    target_profile = _get_user_profile(target_uid)
+    
+    if target_profile.get('companyId') != company_id:
+        raise HTTPException(status_code=404, detail="User not found in your company")
+        
+    caller_role = caller_profile.get('role')
+    target_role = target_profile.get('role')
+
+    if caller_role == 'manager' and target_role != 'employee':
+        raise HTTPException(status_code=403, detail="Managers can only remove employees")
+    
+    if caller_role == 'pm' and target_role == 'pm':
+        raise HTTPException(status_code=403, detail="PMs cannot remove other PMs")
+
+    # Remove the user from the company by unsetting the companyId
+    db.collection('users').document(target_uid).update({
+        "companyId": ""
+    })
+
+    return {"message": "User removed from company successfully"}

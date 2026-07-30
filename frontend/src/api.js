@@ -28,4 +28,5 @@ export const chatMeeting        = (id, data) => api.post(`/meetings/${id}/chat`,
 export const getCompanyTeam     = ()         => api.get('/companies/team')
 export const getCompanyInfo     = ()         => api.get('/companies/info')
 export const regenerateInvite   = ()         => api.post('/companies/regenerate-invite')
+export const removeTeamMember   = (uid)      => api.delete(`/companies/team/${uid}`)
 

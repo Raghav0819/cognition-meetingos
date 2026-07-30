@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { getCompanyTeam, getCompanyInfo, regenerateInvite } from '../api'
+import { getCompanyTeam, getCompanyInfo, regenerateInvite, removeTeamMember } from '../api'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const ROLE_STYLES = {
   pm:       { label: 'PM / Admin', color: '#c084fc', bg: 'rgba(124,58,237,0.15)', border: 'rgba(124,58,237,0.3)' },
@@ -10,6 +11,7 @@ const ROLE_STYLES = {
 
 export default function TeamPanel({ isPM = false }) {
   const { toast } = useToast()
+  const { userProfile } = useAuth()
   const [team, setTeam]               = useState([])
   const [companyInfo, setCompanyInfo]  = useState(null)
   const [loading, setLoading]         = useState(true)
@@ -44,6 +46,18 @@ export default function TeamPanel({ isPM = false }) {
       toast('Failed to regenerate invite code', 'error')
     } finally {
       setRegenerating(false)
+    }
+  }
+
+  async function handleRemoveMember(uid, name) {
+    if (!confirm(`Are you sure you want to remove ${name} from the company?`)) return
+    try {
+      await removeTeamMember(uid)
+      setTeam(prev => prev.filter(m => m.uid !== uid))
+      setCompanyInfo(prev => prev ? { ...prev, memberCount: prev.memberCount - 1 } : prev)
+      toast(`${name} removed successfully`, 'success')
+    } catch {
+      toast(`Failed to remove ${name}`, 'error')
     }
   }
 
@@ -219,13 +233,13 @@ export default function TeamPanel({ isPM = false }) {
 
         {/* Header row */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '1fr 1.4fr 120px 130px',
+          display: 'grid', gridTemplateColumns: '1fr 1.4fr 120px 100px 30px',
           padding: '10px 24px',
           borderBottom: '1px solid rgba(255,255,255,0.04)',
           background: 'rgba(255,255,255,0.015)',
         }}>
-          {['Name', 'Email', 'Role', 'Joined'].map(h => (
-            <span key={h} style={{
+          {['Name', 'Email', 'Role', 'Joined', ''].map((h, i) => (
+            <span key={i} style={{
               color: '#374151', fontSize: 10, fontWeight: 600,
               textTransform: 'uppercase', letterSpacing: '0.06em',
             }}>{h}</span>
@@ -241,13 +255,19 @@ export default function TeamPanel({ isPM = false }) {
           team.map((member, i) => {
             const s = ROLE_STYLES[member.role] || { label: member.role, color: '#9ca3af', bg: 'rgba(107,114,128,0.15)', border: 'rgba(107,114,128,0.3)' }
             const initial = (member.name || '?').charAt(0).toUpperCase()
+            
+            let canDelete = false
+            if (userProfile && member.uid !== userProfile.uid) {
+              if (userProfile.role === 'pm' && member.role !== 'pm') canDelete = true
+              if (userProfile.role === 'manager' && member.role === 'employee') canDelete = true
+            }
 
             return (
               <div
                 key={member.uid}
                 className={i === 0 ? 'anim-fade-up' : ''}
                 style={{
-                  display: 'grid', gridTemplateColumns: '1fr 1.4fr 120px 130px',
+                  display: 'grid', gridTemplateColumns: '1fr 1.4fr 120px 100px 30px',
                   padding: '14px 24px',
                   borderBottom: '1px solid rgba(255,255,255,0.03)',
                   alignItems: 'center',
@@ -294,6 +314,26 @@ export default function TeamPanel({ isPM = false }) {
                     : '—'
                   }
                 </span>
+                
+                {/* Actions */}
+                <div>
+                  {canDelete && (
+                    <button
+                      onClick={() => handleRemoveMember(member.uid, member.name)}
+                      style={{
+                        background: 'none', border: 'none', padding: '2px', margin: 0,
+                        color: '#ef4444', fontSize: 14, cursor: 'pointer',
+                        opacity: 0.5, transition: 'opacity 0.2s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                      onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                      title={`Remove ${member.name}`}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })
