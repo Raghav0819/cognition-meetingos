@@ -355,6 +355,7 @@ export default function Login() {
         name:  googleUser.displayName || googleUser.email.split('@')[0],
         role:  selectedRole,
         email: googleUser.email,
+        createdAt: serverTimestamp(),
       }
       await setDoc(doc(firestore, 'users', googleUser.uid), profile)
       localStorage.setItem('user', JSON.stringify(profile))
