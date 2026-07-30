@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar'
 import { getMeetings, uploadTranscript, checkOverdueTasks } from '../api'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import TeamPanel from '../components/TeamPanel'
 
 const STATUS = {
   processing: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.3)',  dot: '#fbbf24' },
@@ -114,6 +115,7 @@ export default function PMDashboard() {
   const [fetchError,   setFetchError]   = useState('')
   const [search,       setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [activeTab,    setActiveTab]    = useState('meetings')
   const navigate = useNavigate()
   const { userProfile } = useAuth()
   const { toast } = useToast()
@@ -181,12 +183,27 @@ export default function PMDashboard() {
       <Navbar title="PM Dashboard" />
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
-        {/* Page header */}
+        {/* Page header with tabs */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28 }}>
           <div>
-            <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>Meetings</h1>
-            <p style={{ color: '#4b5563', fontSize: 13, margin: '4px 0 0' }}>
-              All AI-processed meeting transcripts for your team
+            <div style={{ display: 'flex', gap: 20, marginBottom: 8 }}>
+              {['meetings', 'team'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    color: activeTab === tab ? '#fff' : '#6b7280',
+                    fontSize: 22, fontWeight: 700, cursor: 'pointer',
+                    textTransform: 'capitalize', transition: 'color 0.2s',
+                  }}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            <p style={{ color: '#4b5563', fontSize: 13, margin: 0 }}>
+              {activeTab === 'meetings' ? 'All AI-processed meeting transcripts for your team' : 'Manage your organization members and invites'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -218,59 +235,17 @@ export default function PMDashboard() {
           </div>
         </div>
 
-        {/* Stats row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
-          <StatCard label="Total Meetings" value={meetings.length} sub="all time" />
-          <StatCard label="Processing"     value={processing}       sub="running now"  accent="#fbbf24" />
-          <StatCard label="Completed"      value={completed}        sub="fully analyzed" accent="#22c55e" />
-          <StatCard label="Tasks Extracted" value={totalTasks}      sub="across all meetings" accent="#a78bfa" />
-        </div>
-
-        {/* Company ID banner */}
-        {userProfile?.companyId && (
-          <div style={{
-            background: 'rgba(124,58,237,0.07)',
-            border: '1px solid rgba(124,58,237,0.2)',
-            borderRadius: 12,
-            padding: '12px 18px',
-            marginBottom: 20,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: 'rgba(124,58,237,0.2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0
-              }}>
-                🔗
-              </div>
-              <div>
-                <p style={{ color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }}>
-                  Chrome Extension — Company ID
-                </p>
-                <p style={{ color: '#c4b5fd', fontFamily: 'monospace', fontSize: 13, fontWeight: 600, margin: 0 }}>
-                  {userProfile.companyId}
-                </p>
-              </div>
+        {activeTab === 'team' ? (
+          <TeamPanel isPM={true} />
+        ) : (
+          <>
+            {/* Stats row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 24 }}>
+              <StatCard label="Total Meetings" value={meetings.length} sub="all time" />
+              <StatCard label="Processing"     value={processing}       sub="running now"  accent="#fbbf24" />
+              <StatCard label="Completed"      value={completed}        sub="fully analyzed" accent="#22c55e" />
+              <StatCard label="Tasks Extracted" value={totalTasks}      sub="across all meetings" accent="#a78bfa" />
             </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(userProfile.companyId)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }}
-              style={{
-                background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
-                border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                color: copied ? '#22c55e' : '#9ca3af',
-                fontSize: 11, padding: '5px 12px', borderRadius: 7,
-                cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0, fontWeight: 500
-              }}
-            >
-              {copied ? '✓ Copied!' : 'Copy ID'}
-            </button>
-          </div>
-        )}
 
         {!userProfile?.companyId && (
           <div style={{
@@ -498,6 +473,8 @@ export default function PMDashboard() {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

@@ -1,13 +1,35 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from firebase_config import db
-from auth_middleware import get_current_user_uid
+from auth_middleware import get_current_user_uid, get_current_company_id
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import random, string
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 limiter = Limiter(key_func=get_remote_address)
 
+
+def _gen_invite_code():
+    """Generate a 6-character uppercase alphanumeric invite code."""
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+
+def _get_user_profile(uid: str):
+    """Fetch a user profile from Firestore by UID."""
+    doc = db.collection('users').document(uid).get()
+    if not doc.exists:
+        raise HTTPException(status_code=403, detail="User profile not found")
+    return doc.to_dict()
+
+
+def _require_role(profile: dict, allowed_roles: list):
+    """Raise 403 if the user's role is not in the allowed list."""
+    if profile.get('role') not in allowed_roles:
+        raise HTTPException(status_code=403, detail="You do not have permission to access this resource")
+
+
+# ── Invite code lookup (existing) ──────────────────────────────────────────────
 
 @router.get("/lookup")
 @limiter.limit("5/minute")
@@ -48,4 +70,105 @@ def lookup_invite_code(request: Request, invite_code: str, uid: str = Depends(ge
     return {
         "companyId": docs[0].id,
         "companyName": company_data.get("name", "")
+    }
+
+
+# ── Team list ──────────────────────────────────────────────────────────────────
+
+@router.get("/team")
+def get_company_team(
+    uid: str = Depends(get_current_user_uid),
+    company_id: str = Depends(get_current_company_id),
+):
+    """
+    Returns all users belonging to the caller's company.
+    Only PM and Manager roles can access this.
+    """
+    profile = _get_user_profile(uid)
+    _require_role(profile, ['pm', 'manager'])
+
+    users_ref = db.collection('users').where('companyId', '==', company_id).stream()
+
+    team = []
+    for doc in users_ref:
+        data = doc.to_dict()
+        created_at = data.get('createdAt')
+        team.append({
+            "uid": doc.id,
+            "name": data.get("name", ""),
+            "email": data.get("email", ""),
+            "role": data.get("role", ""),
+            "createdAt": created_at.isoformat() if hasattr(created_at, 'isoformat') else str(created_at) if created_at else None,
+        })
+
+    # Sort: PMs first, then managers, then employees; alphabetical within each group
+    role_order = {'pm': 0, 'manager': 1, 'employee': 2}
+    team.sort(key=lambda u: (role_order.get(u['role'], 99), u['name'].lower()))
+
+    return team
+
+
+# ── Company info ───────────────────────────────────────────────────────────────
+
+@router.get("/info")
+def get_company_info(
+    uid: str = Depends(get_current_user_uid),
+    company_id: str = Depends(get_current_company_id),
+):
+    """
+    Returns company details including invite code and member count.
+    Only PM and Manager roles can access this.
+    """
+    profile = _get_user_profile(uid)
+    _require_role(profile, ['pm', 'manager'])
+
+    company_doc = db.collection('companies').document(company_id).get()
+    if not company_doc.exists:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    data = company_doc.to_dict()
+    expires_at = data.get('expiresAt')
+
+    # Count members
+    members = list(db.collection('users').where('companyId', '==', company_id).stream())
+
+    return {
+        "companyId": company_id,
+        "name": data.get("name", ""),
+        "inviteCode": data.get("inviteCode", ""),
+        "expiresAt": expires_at.isoformat() if hasattr(expires_at, 'isoformat') else str(expires_at) if expires_at else None,
+        "memberCount": len(members),
+    }
+
+
+# ── Regenerate invite code (PM only) ──────────────────────────────────────────
+
+@router.post("/regenerate-invite")
+def regenerate_invite_code(
+    uid: str = Depends(get_current_user_uid),
+    company_id: str = Depends(get_current_company_id),
+):
+    """
+    Generates a new invite code for the company.
+    PM-only endpoint. The old code is immediately invalidated.
+    """
+    profile = _get_user_profile(uid)
+    _require_role(profile, ['pm'])
+
+    company_ref = db.collection('companies').document(company_id)
+    company_doc = company_ref.get()
+    if not company_doc.exists:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    new_code = _gen_invite_code()
+    new_expiry = datetime.now(timezone.utc) + timedelta(days=7)
+
+    company_ref.update({
+        "inviteCode": new_code,
+        "expiresAt": new_expiry,
+    })
+
+    return {
+        "inviteCode": new_code,
+        "expiresAt": new_expiry.isoformat(),
     }

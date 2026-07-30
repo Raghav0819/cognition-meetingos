@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Navbar from '../components/Navbar'
 import { getAllTasks, getMeetings } from '../api'
+import TeamPanel from '../components/TeamPanel'
 
 /* ── SVG Donut Chart ─────────────────────────────────────────────── */
 function DonutChart({ data, size = 180, thickness = 22 }) {
@@ -169,6 +170,7 @@ export default function ManagerDashboard() {
   const [tasks,    setTasks]    = useState([])
   const [meetings, setMeetings] = useState([])
   const [loading,  setLoading]  = useState(true)
+  const [activeTab, setActiveTab] = useState('analytics')
 
   useEffect(() => { fetchAll() }, [])
 
@@ -242,15 +244,34 @@ export default function ManagerDashboard() {
       <Navbar title="Manager Overview" />
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
-        {/* Page header */}
+        {/* Page header with tabs */}
         <div style={{ marginBottom: 28 }}>
-          <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>Team Analytics</h1>
-          <p style={{ color: '#4b5563', fontSize: 13, margin: '4px 0 0' }}>
-            Real-time overview across all meetings and tasks
+          <div style={{ display: 'flex', gap: 20, marginBottom: 8 }}>
+            {['analytics', 'team'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  background: 'none', border: 'none', padding: 0,
+                  color: activeTab === tab ? '#fff' : '#6b7280',
+                  fontSize: 22, fontWeight: 700, cursor: 'pointer',
+                  textTransform: 'capitalize', transition: 'color 0.2s',
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <p style={{ color: '#4b5563', fontSize: 13, margin: 0 }}>
+            {activeTab === 'analytics' ? 'Real-time overview across all meetings and tasks' : 'View your organization members and invites'}
           </p>
         </div>
 
-        {/* Escalation alert */}
+        {activeTab === 'team' ? (
+          <TeamPanel isPM={false} />
+        ) : (
+          <>
+            {/* Escalation alert */}
         {escalated > 0 && (
           <div className="anim-fade-up" style={{
             background: 'rgba(249,115,22,0.07)',
@@ -481,7 +502,10 @@ export default function ManagerDashboard() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   )
 }
+
