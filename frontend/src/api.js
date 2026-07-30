@@ -1,11 +1,14 @@
 import axios from 'axios'
+import { auth } from '../firebase'
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'https://cognition-meetingos.onrender.com' })
 
-// Attach company ID to every request so the backend scopes data correctly
-api.interceptors.request.use(config => {
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
-  if (user.companyId) config.headers['X-Company-ID'] = user.companyId
+// Attach Firebase Auth Token to every request to secure endpoints
+api.interceptors.request.use(async config => {
+  if (auth.currentUser) {
+    const token = await auth.currentUser.getIdToken()
+    config.headers['Authorization'] = `Bearer ${token}`
+  }
   return config
 })
 

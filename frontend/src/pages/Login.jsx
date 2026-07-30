@@ -10,8 +10,7 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth'
 import {
-  doc, setDoc, getDoc, updateDoc,
-  collection, query, where, getDocs,
+  doc, setDoc, getDoc, updateDoc, serverTimestamp
 } from 'firebase/firestore'
 import { auth, firestore } from '../firebase'
 
@@ -113,11 +112,15 @@ function CompanySetupScreen({ uid, role, onDone }) {
     try {
       const code      = genInviteCode()
       const companyId = `co_${Math.random().toString(36).substring(2, 10)}`
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 7)
+
       await setDoc(doc(firestore, 'companies', companyId), {
         name:      companyName.trim(),
         inviteCode: code,
         createdBy: uid,
         createdAt: new Date(),
+        expiresAt: expiresAt,
       })
       await updateDoc(doc(firestore, 'users', uid), { companyId })
       const profile = JSON.parse(localStorage.getItem('user') || '{}')
@@ -138,15 +141,21 @@ function CompanySetupScreen({ uid, role, onDone }) {
     setLoading(true)
     setError('')
     try {
-      const q    = query(collection(firestore, 'companies'), where('inviteCode', '==', code))
-      const snap = await getDocs(q)
-      if (snap.empty) {
+      // Invite code lookup is handled by the backend (Admin SDK) for security.
+      // Firestore rules cannot restrict query where() clauses, so client-side
+      // querying of the companies collection would expose all company documents.
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://cognition-meetingos.onrender.com'
+      const token = await auth.currentUser.getIdToken()
+      const res = await fetch(`${apiUrl}/companies/lookup?invite_code=${encodeURIComponent(code)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!res.ok) {
         setError('Invalid invite code. Ask your PM for the correct code.')
         setLoading(false)
         return
       }
-      const companyId = snap.docs[0].id
-      await updateDoc(doc(firestore, 'users', uid), { companyId })
+      const { companyId } = await res.json()
+      await updateDoc(doc(firestore, 'users', uid), { companyId, updatedAt: serverTimestamp() })
       const profile = JSON.parse(localStorage.getItem('user') || '{}')
       localStorage.setItem('user', JSON.stringify({ ...profile, companyId }))
       onDone()
@@ -279,7 +288,7 @@ export default function Login() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password)
       await sendEmailVerification(cred.user)
-      await setDoc(doc(firestore, 'users', cred.user.uid), { name: name.trim(), role, email })
+      await setDoc(doc(firestore, 'users', cred.user.uid), { name: name.trim(), role, email, createdAt: serverTimestamp() })
       await signOut(auth)
       setVerifyEmail(email)
     } catch (err) {

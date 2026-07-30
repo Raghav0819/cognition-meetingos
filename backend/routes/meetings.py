@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Header
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from auth_middleware import get_current_company_id
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
@@ -52,7 +53,7 @@ def process_with_crew(meeting_id: str, transcript: str, participants: list):
 def upload_transcript(
     data: TranscriptUpload,
     background_tasks: BackgroundTasks,
-    x_company_id: str = Header(default="")
+    company_id: str = Depends(get_current_company_id)
 ):
     meeting_id = uuid.uuid4().hex[:8]
     meeting_ref = db.collection('meetings').document(meeting_id)
@@ -64,7 +65,7 @@ def upload_transcript(
         'mom': '',
         'status': 'processing',
         'date': datetime.utcnow(),
-        'companyId': x_company_id,
+        'companyId': company_id,
     })
 
     participants_list = []
@@ -93,10 +94,10 @@ def upload_transcript(
 
 
 @router.get("/")
-def get_all_meetings(x_company_id: str = Header(default="")):
-    if not x_company_id:
+def get_all_meetings(company_id: str = Depends(get_current_company_id)):
+    if not company_id:
         return []
-    docs = list(db.collection('meetings').where('companyId', '==', x_company_id).stream())
+    docs = list(db.collection('meetings').where('companyId', '==', company_id).stream())
     docs.sort(key=lambda d: d.to_dict().get('date') or datetime.min, reverse=True)
     result = []
     for doc in docs:
@@ -114,12 +115,15 @@ def get_all_meetings(x_company_id: str = Header(default="")):
 
 
 @router.get("/{meeting_id}")
-def get_meeting(meeting_id: str):
+def get_meeting(meeting_id: str, company_id: str = Depends(get_current_company_id)):
     doc = db.collection('meetings').document(meeting_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
     m = doc.to_dict()
+    if m.get('companyId') != company_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     meeting_ref = db.collection('meetings').document(meeting_id)
 
     participants = [p.to_dict() for p in meeting_ref.collection('participants').stream()]
@@ -143,7 +147,11 @@ def get_meeting(meeting_id: str):
 
 
 @router.get("/{meeting_id}/logs")
-def get_meeting_logs(meeting_id: str):
+def get_meeting_logs(meeting_id: str, company_id: str = Depends(get_current_company_id)):
+    doc = db.collection('meetings').document(meeting_id).get()
+    if not doc.exists or doc.to_dict().get('companyId') != company_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     logs = db.collection('meetings').document(meeting_id).collection('logs').order_by('timestamp').stream()
     return [
         {'agent': l.to_dict().get('agent'), 'action': l.to_dict().get('action'), 'timestamp': _ts(l.to_dict().get('timestamp'))}
@@ -231,10 +239,12 @@ def regenerate_summary_task(meeting_id: str):
 
 
 @router.post("/{meeting_id}/regenerate-summary")
-def regenerate_summary(meeting_id: str, background_tasks: BackgroundTasks):
+def regenerate_summary(meeting_id: str, background_tasks: BackgroundTasks, company_id: str = Depends(get_current_company_id)):
     doc = db.collection('meetings').document(meeting_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    if doc.to_dict().get('companyId') != company_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     if not doc.to_dict().get('transcript'):
         raise HTTPException(status_code=400, detail="No transcript available to summarize")
 
@@ -249,12 +259,14 @@ def regenerate_summary(meeting_id: str, background_tasks: BackgroundTasks):
 
 
 @router.post("/{meeting_id}/chat")
-def chat_meeting(meeting_id: str, payload: ChatMessage):
+def chat_meeting(meeting_id: str, payload: ChatMessage, company_id: str = Depends(get_current_company_id)):
     import os, json, urllib.request, urllib.error
 
     doc = db.collection('meetings').document(meeting_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    if doc.to_dict().get('companyId') != company_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     transcript = doc.to_dict().get('transcript', '')
     if not transcript:

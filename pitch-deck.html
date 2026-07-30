@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cognition MeetingOS — Pitch Deck</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: #050509;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ── Slide shell ─────────────────────────────────── */
+    .slide {
+      width: 1280px;
+      height: 720px;
+      background: #07070f;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 52px 72px 44px;
+      margin: 0 auto 4px;
+    }
+
+    @media print {
+      body { background: #07070f; }
+      .slide {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        page-break-after: always;
+        break-after: page;
+      }
+      @page { size: A4 landscape; margin: 0; }
+    }
+
+    /* ── Ambient glows (purely decorative) ──────────── */
+    .glow {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      pointer-events: none;
+    }
+
+    /* ── Shared typography ───────────────────────────── */
+    .eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #7c3aed;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .eyebrow::before {
+      content: '';
+      width: 24px;
+      height: 2px;
+      background: #7c3aed;
+      border-radius: 1px;
+    }
+
+    h1 {
+      font-size: 54px;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1.04;
+      letter-spacing: -1.5px;
+    }
+    h2 {
+      font-size: 38px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.1;
+      letter-spacing: -0.8px;
+    }
+    h3 { font-size: 18px; font-weight: 700; color: #fff; }
+    h4 { font-size: 13px; font-weight: 700; color: #e5e7eb; }
+
+    .grad {
+      background: linear-gradient(135deg, #c084fc 0%, #7c3aed 60%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .muted { color: #6b7280; }
+    .dim   { color: #374151; }
+
+    /* ── Chip / badge ────────────────────────────────── */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 4px 11px;
+      border-radius: 20px;
+    }
+    .chip-purple { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.35); color: #c4b5fd; }
+    .chip-green  { background: rgba(34,197,94,0.12);  border: 1px solid rgba(34,197,94,0.3);  color: #4ade80; }
+    .chip-yellow { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.3); color: #fde68a; }
+    .chip-blue   { background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3); color: #93c5fd; }
+    .chip-gray   { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #9ca3af; }
+
+    /* ── Card ────────────────────────────────────────── */
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .card-accent-purple { border-top: 2px solid #7c3aed; }
+    .card-accent-green  { border-top: 2px solid #22c55e; }
+    .card-accent-yellow { border-top: 2px solid #fbbf24; }
+    .card-accent-blue   { border-top: 2px solid #3b82f6; }
+    .card-accent-rose   { border-top: 2px solid #f43f5e; }
+
+    /* ── Grid helpers ────────────────────────────────── */
+    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+
+    /* ── Slide footer ────────────────────────────────── */
+    .slide-footer {
+      position: absolute;
+      bottom: 28px;
+      right: 72px;
+      left: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .page-dots {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .page-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+    }
+    .page-dot.on {
+      background: #7c3aed;
+      width: 18px;
+      border-radius: 3px;
+    }
+
+    /* ── Navbar strip (top of every slide) ────────────── */
+    .nav-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 40px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-icon {
+      width: 28px; height: 28px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #7c3aed, #c084fc);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .brand-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    .brand-suffix {
+      font-size: 14px;
+      font-weight: 300;
+      color: #a78bfa;
+    }
+
+    /* ── Stat box ────────────────────────────────────── */
+    .stat-box {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 16px 18px;
+      text-align: center;
+    }
+    .stat-val { font-size: 28px; font-weight: 900; line-height: 1; }
+    .stat-lbl { font-size: 10px; color: #6b7280; margin-top: 5px; letter-spacing: 0.04em; }
+
+    /* ── Agent flow ──────────────────────────────────── */
+    .agent-flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .agent-node {
+      flex: 1;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
+      position: relative;
+    }
+    .agent-node .icon {
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+    .agent-node .lbl {
+      font-size: 10px;
+      color: #9ca3af;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .agent-arrow {
+      width: 20px;
+      text-align: center;
+      color: #374151;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    /* ── Journey step ────────────────────────────────── */
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .step-num {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #7c3aed44, #a78bfa22);
+      border: 1px solid rgba(124,58,237,0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #a78bfa;
+      flex-shrink: 0;
+    }
+
+    /* ── Mockup shell ────────────────────────────────── */
+    .mockup {
+      background: #0a0a14;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 10px;
+    }
+    .mockup-bar {
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .mockup-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .mockup-body { padding: 12px; }
+
+    /* ── Mini progress bar ───────────────────────────── */
+    .prog-track {
+      height: 3px;
+      background: #1e293b;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .prog-fill { height: 100%; border-radius: 2px; }
+
+    /* ── Divider ─────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+      margin: 14px 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 1 — COVER
+═══════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="glow" style="width:600px;height:600px;background:rgba(124,58,237,0.1);top:-250px;right:-150px;"></div>
+  <div class="glow" style="width:350px;height:350px;background:rgba(59,130,246,0.06);bottom:-120px;left:80px;"></div>
+
+  <!-- Top nav -->
+  <div class="nav-strip">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="white"/>
+        </svg>
+      </div>
+      <span class="brand-name">Cognition</span>
+      <span class="brand-suffix">MeetingOS</span>
+    </div>
+    <span class="chip chip-purple">Challenge 1 — Build an AI System</span>
+  </div>
+
+  <!-- Main headline -->
+  <div style="margin:auto 0; padding:20px 0 40px;">
+    <p style="font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#4b5563;margin-bottom:20px;">
+      AI-Native Meeting Intelligence Platform
+    </p>
+    <h1 style="max-width:640px;margin-bottom:22px;">
+      Turn every meeting<br/>into <span class="grad">structured action</span>
+    </h1>
+    <p style="color:#6b7280;font-size:17px;max-width:500px;line-height:1.7;margin-bottom:36px;">
+      7 autonomous AI agents extract tasks, assign owners, score confidence,
+      and generate Minutes of Meeting — in under 60 seconds.
+    </p>
+
+    <!-- Tech badges -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <span class="chip chip-gray">CrewAI</span>
+      <span class="chip chip-gray">Groq LLaMA 3.3 70B</span>
+      <span class="chip chip-gray">FastAPI</span>
+      <span class="chip chip-gray">Firebase Firestore</span>
+      <span class="chip chip-gray">Chrome Extension</span>
+      <span class="chip chip-gray">React + Vite</span>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="slide-footer">
+    <span style="color:#374151;font-size:11px;">AI Hackathon 2026 · Team Cognition</span>
+    <div class="page-dots">
+      <div class="page-dot on"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 2 — THE CHALLENGE
+═══════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="glow" style="width:400px;height:400px;background:rgba(239,68,68,0.06);top:-180px;right:200px;"></div>
+
+  <div class="nav-strip">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="white"/>
+        </svg>
+      </div>
+      <span class="brand-name">Cognition</span>
+      <span class="brand-suffix">MeetingOS</span>
+    </div>
+    <span class="chip chip-purple">Challenge 1 — AI Systems</span>
+  </div>
+
+  <div class="eyebrow">The Problem We Are Solving</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;flex:1;">
+
+    <!-- Left: headline + stats -->
+    <div style="display:flex;flex-direction:column;justify-content:center;">
+      <h2 style="margin-bottom:16px;">Meetings produce<br/>work nobody tracks</h2>
+      <p style="color:#6b7280;font-size:14px;line-height:1.75;margin-bottom:28px;">
+        Every meeting ends with verbal commitments — tasks, owners, deadlines.
+        Within hours they vanish into chat threads, forgotten notes, and
+        empty inboxes. No system closes the loop.
+      </p>
+
+      <!-- Stats row -->
+      <div class="g3" style="gap:10px;">
+        <div class="stat-box">
+          <div class="stat-val" style="color:#ef4444;">55M</div>
+          <div class="stat-lbl">meetings per day globally</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" style="color:#fbbf24;">71%</div>
+          <div class="stat-lbl">rated unproductive (HBR)</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" style="color:#a78bfa;">$37B</div>
+          <div class="stat-lbl">lost to bad meetings/yr</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: pain points -->
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:12px;">
+      <div class="card" style="border-left:3px solid #ef4444;">
+        <h4 style="margin-bottom:5px;color:#f87171;">No Automatic Task Capture</h4>
+        <p style="color:#6b7280;font-size:12px;line-height:1.6;">
+          Action items are spoken aloud but never formally recorded.
+          PMs manually write notes — a slow, error-prone process.
+        </p>
+      </div>
+      <div class="card" style="border-left:3px solid #fbbf24;">
+        <h4 style="margin-bottom:5px;color:#fde68a;">Accountability Gaps</h4>
+        <p style="color:#6b7280;font-size:12px;line-height:1.6;">
+          Without clear owner assignment and deadlines, tasks drift.
+          Nobody knows who owns what until it's too late.
+        </p>
+      </div>
+      <div class="card" style="border-left:3px solid #a78bfa;">
+        <h4 style="margin-bottom:5px;color:#c4b5fd;">Zero Manager Visibility</h4>
+        <p style="color:#6b7280;font-size:12px;line-height:1.6;">
+          Managers have no real-time view of team workload, task
+          completion rates, or escalations across all meetings.
+        </p>
+      </div>
+      <div class="card" style="border-left:3px solid #22c55e;">
+        <h4 style="margin-bottom:5px;color:#4ade80;">Manual MoM Takes Hours</h4>
+        <p style="color:#6b7280;font-size:12px;line-height:1.6;">
+          Writing structured Minutes of Meeting is time-intensive.
+          Most teams skip it, losing institutional memory permanently.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-footer">
+    <span style="color:#374151;font-size:11px;">The Problem</span>
+    <div class="page-dots">
+      <div class="page-dot"></div>
+      <div class="page-dot on"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 3 — THE SOLUTION
+═══════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="glow" style="width:500px;height:500px;background:rgba(124,58,237,0.09);top:-200px;left:-150px;"></div>
+  <div class="glow" style="width:300px;height:300px;background:rgba(34,197,94,0.05);bottom:-100px;right:100px;"></div>
+
+  <div class="nav-strip">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="white"/>
+        </svg>
+      </div>
+      <span class="brand-name">Cognition</span>
+      <span class="brand-suffix">MeetingOS</span>
+    </div>
+    <span class="chip chip-green">Our Solution</span>
+  </div>
+
+  <div class="eyebrow">How Cognition MeetingOS Works</div>
+
+  <h2 style="margin-bottom:6px;">A 7-agent AI pipeline that does<br/>the work after every meeting</h2>
+  <p style="color:#6b7280;font-size:13px;margin-bottom:22px;">
+    Built on CrewAI + Groq LLaMA 3.3 70B. Agents run sequentially, each handing off enriched data to the next.
+  </p>
+
+  <!-- Agent pipeline -->
+  <div class="agent-flow" style="margin-bottom:20px;">
+    <div class="agent-node" style="border-top:2px solid #7c3aed;">
+      <div class="icon">📥</div>
+      <div class="lbl">Extraction<br/>Agent</div>
+      <div style="font-size:9px;color:#4b5563;margin-top:4px;">Parses transcript for tasks</div>
+    </div>
+    <div class="agent-arrow">›</div>
+    <div class="agent-node" style="border-top:2px solid #3b82f6;">
+      <div class="icon">👤</div>
+      <div class="lbl">Assignment<br/>Agent</div>
+      <div style="font-size:9px;color:#4b5563;margin-top:4px;">Maps tasks to people</div>
+    </div>
+    <div class="agent-arrow">›</div>
+    <div class="agent-node" style="border-top:2px solid #22c55e;">
+      <div class="icon">📊</div>
+      <div class="lbl">Confidence<br/>Agent</div>
+      <div style="font-size:9px;color:#4b5563;margin-top:4px;">Scores clarity 0–100%</div>
+    </div>
+    <div class="agent-arrow">›</div>
+    <div class="agent-node" style="border-top:2px solid #fbbf24;">
+      <div class="icon">✅</div>
+      <div class="lbl">Validation<br/>Agent</div>
+      <div style="font-size:9px;color:#4b5563;margin-top:4px;">Flags ambiguous tasks</div>
+    </div>
+    <div class="agent-arrow">›</div>
+    <div class="agent-node" style="border-top:2px solid #f97316;">
+      <div class="icon">⏰</div>
+      <div class="lbl">Follow-up<br/>Agent</div>
+      <div style="font-size:9px;color:#4b5563;margin-top:4px;">Sets deadlines</div>
+    </div>
+    <div class="agent-arrow">›</div>
+    <div class="agent-node" style="border-top:2px solid #f43f5e;">
+      <div class="icon">🔍</div>
+      <div class="lbl">Audit<br/>Agent</div>
+      <div style="font-size:9px;color:#4b5563;margin-top:4px;">Logs every decision</div>
+    </div>
+    <div class="agent-arrow">›</div>
+    <div class="agent-node" style="border-top:2px solid #c084fc;">
+      <div class="icon">📄</div>
+      <div class="lbl">Summary<br/>Agent</div>
+      <div style="font-size:9px;color:#4b5563;margin-top:4px;">Generates full MoM</div>
+    </div>
+  </div>
+
+  <!-- What you get -->
+  <div class="g4">
+    <div class="card card-accent-purple">
+      <h4 style="margin-bottom:5px;font-size:12px;">Structured Tasks</h4>
+      <p style="color:#6b7280;font-size:11px;line-height:1.5;">Title, owner, deadline, confidence score — auto-extracted.</p>
+    </div>
+    <div class="card card-accent-blue">
+      <h4 style="margin-bottom:5px;font-size:12px;">Role Dashboards</h4>
+      <p style="color:#6b7280;font-size:11px;line-height:1.5;">PM validates. Employees track their tasks. Managers see analytics.</p>
+    </div>
+    <div class="card card-accent-green">
+      <h4 style="margin-bottom:5px;font-size:12px;">AI Minutes of Meeting</h4>
+      <p style="color:#6b7280;font-size:11px;line-height:1.5;">Structured MoM with decisions, risks, and next steps.</p>
+    </div>
+    <div class="card card-accent-yellow">
+      <h4 style="margin-bottom:5px;font-size:12px;">Chrome Extension</h4>
+      <p style="color:#6b7280;font-size:11px;line-height:1.5;">Live capture on Google Meet. One click to send to agents.</p>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span style="color:#374151;font-size:11px;">The Solution — 7 Agents, 1 Pipeline</span>
+    <div class="page-dots">
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot on"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 4 — USER JOURNEY
+═══════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="glow" style="width:400px;height:400px;background:rgba(59,130,246,0.07);top:-150px;right:-100px;"></div>
+
+  <div class="nav-strip">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="white"/>
+        </svg>
+      </div>
+      <span class="brand-name">Cognition</span>
+      <span class="brand-suffix">MeetingOS</span>
+    </div>
+    <span class="chip chip-blue">User Journey</span>
+  </div>
+
+  <div class="eyebrow">From Meeting to Action — End to End</div>
+
+  <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:32px;flex:1;align-items:start;padding-top:4px;">
+
+    <!-- Left: numbered journey steps -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <h4 style="margin-bottom:3px;">Record on Google Meet via Chrome Extension</h4>
+          <p style="color:#6b7280;font-size:12px;line-height:1.55;">
+            The Cognition extension runs silently during the meeting, capturing live speech with speaker labels.
+            When done, the PM hits <em style="color:#a78bfa;">"Send to AI Agents"</em>. Company ID links the meeting
+            to the right workspace. Transcript can also be pasted manually.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <h4 style="margin-bottom:3px;">7-Agent CrewAI Pipeline Runs in Background</h4>
+          <p style="color:#6b7280;font-size:12px;line-height:1.55;">
+            FastAPI triggers the async pipeline. Extraction → Assignment → Confidence → Validation → Follow-up
+            → Audit → Summary agents execute sequentially. Tasks and MoM are written to Firestore.
+            Average processing time: <em style="color:#22c55e;">30–60 seconds</em>.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <h4 style="margin-bottom:3px;">PM Reviews &amp; Validates AI-Extracted Tasks</h4>
+          <p style="color:#6b7280;font-size:12px;line-height:1.55;">
+            The PM Dashboard shows a live meeting card. On click: tasks with confidence scores,
+            approve/reject buttons, the full AI-generated Minutes of Meeting, and a complete
+            agent audit trail. One-tap approval or edit.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div>
+          <h4 style="margin-bottom:3px;">Employees See Their Tasks Automatically</h4>
+          <p style="color:#6b7280;font-size:12px;line-height:1.55;">
+            Each employee's dashboard shows only their tasks — assigned by name from the transcript.
+            They mark tasks done, overdue, or escalate. Overdue detection runs automatically on login.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div>
+          <h4 style="margin-bottom:3px;">Manager Tracks Team Performance in Real Time</h4>
+          <p style="color:#6b7280;font-size:12px;line-height:1.55;">
+            A live analytics dashboard shows task distribution (donut chart), team completion rates
+            (ranked progress bars), department meeting breakdown, and escalation alerts.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: role access diagram -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <p style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#4b5563;margin-bottom:4px;">
+        Role-Based Access
+      </p>
+
+      <div class="card card-accent-purple">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <h4 style="font-size:12px;">Project Manager</h4>
+          <span class="chip chip-purple" style="font-size:9px;padding:2px 8px;">PM</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">›</span> Upload / record transcripts</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">›</span> Approve / reject AI tasks</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">›</span> View full MoM + agent logs</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#a78bfa;">›</span> Ask questions via AI chat</div>
+        </div>
+      </div>
+
+      <div class="card card-accent-blue">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <h4 style="font-size:12px;">Employee</h4>
+          <span class="chip chip-blue" style="font-size:9px;padding:2px 8px;">Employee</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#60a5fa;">›</span> See only their assigned tasks</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#60a5fa;">›</span> Mark done / overdue / escalate</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#60a5fa;">›</span> Filter by status</div>
+        </div>
+      </div>
+
+      <div class="card card-accent-green">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <h4 style="font-size:12px;">Manager</h4>
+          <span class="chip chip-green" style="font-size:9px;padding:2px 8px;">Manager</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#4ade80;">›</span> Team task breakdown (donut chart)</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#4ade80;">›</span> Per-member progress bars</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#4ade80;">›</span> Department-wise meeting chart</div>
+          <div style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px;"><span style="color:#4ade80;">›</span> Escalation alerts</div>
+        </div>
+      </div>
+
+      <!-- Multi-tenancy note -->
+      <div style="background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);border-radius:10px;padding:10px 14px;">
+        <p style="font-size:10px;font-weight:700;color:#a78bfa;margin-bottom:3px;letter-spacing:0.04em;">MULTI-TENANT</p>
+        <p style="font-size:11px;color:#6b7280;line-height:1.5;">
+          Each company gets a unique invite code. All data in Firestore is
+          scoped to company ID — zero cross-tenant data leakage.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-footer">
+    <span style="color:#374151;font-size:11px;">User Journey — 5 Steps, 3 Roles</span>
+    <div class="page-dots">
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot on"></div>
+      <div class="page-dot"></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 5 — MOCKUPS / WIREFRAMES
+═══════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="glow" style="width:500px;height:300px;background:rgba(124,58,237,0.07);bottom:-80px;left:200px;"></div>
+
+  <div class="nav-strip">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="white"/>
+        </svg>
+      </div>
+      <span class="brand-name">Cognition</span>
+      <span class="brand-suffix">MeetingOS</span>
+    </div>
+    <span class="chip chip-yellow">Mockups &amp; Wireframes</span>
+  </div>
+
+  <div class="eyebrow">Key Screens — Built &amp; Live</div>
+
+  <div style="display:grid;grid-template-columns:220px 1fr 1fr;gap:14px;flex:1;align-items:start;">
+
+    <!-- Chrome Extension -->
+    <div>
+      <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Chrome Extension</p>
+      <div class="mockup" style="width:220px;">
+        <div class="mockup-bar">
+          <div class="mockup-dot" style="background:#ff5f57;"></div>
+          <div class="mockup-dot" style="background:#febc2e;"></div>
+          <div class="mockup-dot" style="background:#28c840;"></div>
+          <span style="color:#6b7280;font-size:9px;margin-left:6px;">Cognition MeetingOS</span>
+        </div>
+        <div class="mockup-body">
+          <!-- Status bar -->
+          <div style="background:rgba(255,255,255,0.04);border:1px solid #222;border-radius:6px;padding:7px 10px;display:flex;align-items:center;gap:7px;margin-bottom:8px;">
+            <div style="width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 5px #22c55e88;"></div>
+            <span style="color:#aaa;font-size:9px;">Recording… 42 lines captured</span>
+          </div>
+          <!-- Stats -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+            <div style="background:rgba(255,255,255,0.03);border:1px solid #222;border-radius:6px;padding:7px;text-align:center;">
+              <div style="font-size:16px;font-weight:800;color:#a78bfa;">42</div>
+              <div style="font-size:8px;color:#555;margin-top:2px;">Lines</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:1px solid #222;border-radius:6px;padding:7px;text-align:center;">
+              <div style="font-size:16px;font-weight:800;color:#a78bfa;">3</div>
+              <div style="font-size:8px;color:#555;margin-top:2px;">Speakers</div>
+            </div>
+          </div>
+          <!-- Company ID field -->
+          <div style="margin-bottom:7px;">
+            <div style="font-size:8px;color:#22c55e;margin-bottom:3px;">✓ Company ID saved</div>
+            <div style="background:#111;border:1px solid #333;border-radius:4px;padding:5px 8px;font-family:monospace;font-size:8px;color:#a78bfa;">co_x8f3k2</div>
+          </div>
+          <!-- Title field -->
+          <div style="margin-bottom:7px;">
+            <div style="font-size:8px;color:#666;margin-bottom:3px;">Meeting Title</div>
+            <div style="background:#111;border:1px solid #333;border-radius:4px;padding:5px 8px;font-size:8px;color:#ccc;">Sprint Planning Q3</div>
+          </div>
+          <!-- Buttons -->
+          <div style="display:grid;grid-template-columns:1fr;gap:4px;">
+            <div style="background:#dc2626;border-radius:5px;padding:7px;text-align:center;font-size:9px;font-weight:700;color:#fff;">Stop Recording</div>
+            <div style="background:#7c3aed;border-radius:5px;padding:7px;text-align:center;font-size:9px;font-weight:700;color:#fff;">Send to AI Agents</div>
+          </div>
+          <!-- Participants -->
+          <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
+            <span style="background:#1a1a2e;border:1px solid #333;border-radius:3px;padding:2px 6px;font-size:8px;color:#a78bfa;">Rahul</span>
+            <span style="background:#1a1a2e;border:1px solid #333;border-radius:3px;padding:2px 6px;font-size:8px;color:#a78bfa;">Priya</span>
+            <span style="background:#1a1a2e;border:1px solid #333;border-radius:3px;padding:2px 6px;font-size:8px;color:#a78bfa;">Amit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PM Dashboard -->
+    <div>
+      <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">PM Dashboard</p>
+      <div class="mockup">
+        <!-- Navbar -->
+        <div style="background:rgba(7,7,15,0.9);border-bottom:1px solid rgba(255,255,255,0.06);padding:7px 12px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="width:14px;height:14px;border-radius:3px;background:linear-gradient(135deg,#7c3aed,#c084fc);"></div>
+            <span style="font-size:9px;font-weight:700;color:#fff;">Cognition</span>
+            <span style="font-size:9px;color:#a78bfa;font-weight:300;">MeetingOS</span>
+            <span style="color:#444;font-size:9px;">/</span>
+            <span style="font-size:9px;color:#6b7280;">PM Dashboard</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:8px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#c4b5fd;padding:2px 6px;border-radius:10px;">Project Manager</span>
+            <span style="font-size:8px;color:#9ca3af;">Priya</span>
+          </div>
+        </div>
+        <div style="padding:12px;">
+          <!-- Stats row -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:14px;font-weight:800;color:#fff;">4</div>
+              <div style="font-size:7px;color:#4b5563;margin-top:2px;">Total Meetings</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:14px;font-weight:800;color:#fbbf24;">1</div>
+              <div style="font-size:7px;color:#4b5563;margin-top:2px;">Processing</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:14px;font-weight:800;color:#22c55e;">3</div>
+              <div style="font-size:7px;color:#4b5563;margin-top:2px;">Completed</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px;text-align:center;">
+              <div style="font-size:14px;font-weight:800;color:#a78bfa;">11</div>
+              <div style="font-size:7px;color:#4b5563;margin-top:2px;">Tasks Extracted</div>
+            </div>
+          </div>
+          <!-- Search bar -->
+          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:7px;padding:6px 10px;font-size:9px;color:#4b5563;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            <span>⌕</span>
+            <span>Search by title or department…</span>
+          </div>
+          <!-- Meeting cards -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-top:2px solid #22c55e;border-radius:8px;padding:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                <span style="font-size:9px;font-weight:600;color:#f3f4f6;">Sprint Planning Q3</span>
+                <span style="font-size:7px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e;padding:1px 5px;border-radius:8px;">completed</span>
+              </div>
+              <span style="font-size:8px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);color:#7c3aed;padding:1px 6px;border-radius:4px;">IT</span>
+              <div style="display:flex;justify-content:space-between;margin-top:6px;">
+                <span style="font-size:8px;color:#4b5563;">Jun 10</span>
+                <span style="font-size:8px;color:#a78bfa;font-weight:600;">3 tasks</span>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-top:2px solid #fbbf24;border-radius:8px;padding:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                <span style="font-size:9px;font-weight:600;color:#f3f4f6;">Q2 Review</span>
+                <div style="display:flex;align-items:center;gap:3px;">
+                  <div style="width:5px;height:5px;border-radius:50%;background:#fbbf24;animation:pulse-dot 1.5s infinite;"></div>
+                  <span style="font-size:7px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:1px 5px;border-radius:8px;">processing</span>
+                </div>
+              </div>
+              <span style="font-size:8px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);color:#7c3aed;padding:1px 6px;border-radius:4px;">Sales</span>
+              <div style="display:flex;justify-content:space-between;margin-top:6px;">
+                <span style="font-size:8px;color:#4b5563;">Jun 10</span>
+                <span style="font-size:8px;color:#a78bfa;font-weight:600;">— tasks</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Meeting Detail / Manager Analytics -->
+    <div>
+      <p style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Meeting Detail + Manager Analytics</p>
+
+      <!-- Meeting detail top half -->
+      <div class="mockup" style="margin-bottom:10px;">
+        <div style="padding:10px 12px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-size:10px;font-weight:700;color:#fff;">Sprint Planning Q3</span>
+            <span style="font-size:8px;background:rgba(124,58,237,0.15);color:#a78bfa;padding:1px 6px;border-radius:8px;">IT</span>
+            <span style="font-size:8px;background:rgba(34,197,94,0.12);color:#22c55e;padding:1px 6px;border-radius:8px;">completed</span>
+          </div>
+          <!-- Efficiency score -->
+          <div style="background:#111;border:1px solid #222;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <svg width="32" height="32" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="15" fill="none" stroke="#222" stroke-width="4"/>
+              <circle cx="20" cy="20" r="15" fill="none" stroke="#22c55e" stroke-width="4" stroke-dasharray="84 94" stroke-linecap="round" transform="rotate(-90 20 20)"/>
+            </svg>
+            <div>
+              <div style="font-size:9px;font-weight:700;color:#fff;">Meeting Efficiency Score: 89</div>
+              <div style="font-size:8px;color:#22c55e;">High efficiency</div>
+            </div>
+          </div>
+          <!-- Task cards -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">
+            <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-left:2px solid #fbbf24;border-radius:6px;padding:7px;">
+              <div style="font-size:8px;font-weight:600;color:#f3f4f6;margin-bottom:3px;">Complete API</div>
+              <div style="font-size:7px;color:#4b5563;">Rahul · Dec 1</div>
+              <div class="prog-track"><div class="prog-fill" style="width:90%;background:#22c55e;"></div></div>
+              <div style="font-size:7px;color:#22c55e;margin-top:3px;">90% confidence</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-left:2px solid #22c55e;border-radius:6px;padding:7px;">
+              <div style="font-size:8px;font-weight:600;color:#f3f4f6;margin-bottom:3px;">Review Design</div>
+              <div style="font-size:7px;color:#4b5563;">Priya · Dec 5</div>
+              <div class="prog-track"><div class="prog-fill" style="width:100%;background:#22c55e;"></div></div>
+              <div style="font-size:7px;color:#22c55e;margin-top:3px;">100% confidence</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);border-left:2px solid #3b82f6;border-radius:6px;padding:7px;">
+              <div style="font-size:8px;font-weight:600;color:#f3f4f6;margin-bottom:3px;">Fix DB Bug</div>
+              <div style="font-size:7px;color:#4b5563;">Amit · Nov 30</div>
+              <div class="prog-track"><div class="prog-fill" style="width:75%;background:#fbbf24;"></div></div>
+              <div style="font-size:7px;color:#fbbf24;margin-top:3px;">75% confidence</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manager analytics bottom half -->
+      <div class="mockup">
+        <div style="padding:10px 12px;">
+          <div style="font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Manager Analytics</div>
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:10px;align-items:center;">
+            <!-- Mini donut -->
+            <div style="position:relative;width:70px;height:70px;">
+              <svg width="70" height="70" viewBox="0 0 70 70">
+                <circle cx="35" cy="35" r="26" fill="none" stroke="#14151f" stroke-width="10"/>
+                <circle cx="35" cy="35" r="26" fill="none" stroke="#22c55e" stroke-width="8" stroke-dasharray="65 163" transform="rotate(-90 35 35)"/>
+                <circle cx="35" cy="35" r="26" fill="none" stroke="#a78bfa" stroke-width="8" stroke-dasharray="65 163" stroke-dashoffset="-65" transform="rotate(-90 35 35)"/>
+                <circle cx="35" cy="35" r="26" fill="none" stroke="#ef4444" stroke-width="8" stroke-dasharray="33 163" stroke-dashoffset="-130" transform="rotate(-90 35 35)"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <span style="font-size:12px;font-weight:800;color:#fff;">40%</span>
+                <span style="font-size:7px;color:#4b5563;">done</span>
+              </div>
+            </div>
+            <!-- Team bars -->
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:3px;">
+                  <span style="color:#e5e7eb;text-transform:capitalize;">rahul</span>
+                  <span style="color:#22c55e;font-weight:700;">67%</span>
+                </div>
+                <div class="prog-track" style="height:4px;"><div class="prog-fill" style="width:67%;background:linear-gradient(to right,#16a34a88,#22c55e);"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:3px;">
+                  <span style="color:#e5e7eb;text-transform:capitalize;">priya</span>
+                  <span style="color:#22c55e;font-weight:700;">100%</span>
+                </div>
+                <div class="prog-track" style="height:4px;"><div class="prog-fill" style="width:100%;background:linear-gradient(to right,#16a34a88,#22c55e);"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:3px;">
+                  <span style="color:#e5e7eb;text-transform:capitalize;">amit</span>
+                  <span style="color:#fbbf24;font-weight:700;">33%</span>
+                </div>
+                <div class="prog-track" style="height:4px;"><div class="prog-fill" style="width:33%;background:linear-gradient(to right,#d9770688,#fbbf24);"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-footer">
+    <div style="display:flex;gap:16px;align-items:center;">
+      <span style="color:#374151;font-size:11px;">Built &amp; Deployed — Render + Vercel</span>
+      <span class="chip chip-green" style="font-size:9px;padding:2px 9px;">Live at cognition-meetingos.vercel.app</span>
+    </div>
+    <div class="page-dots">
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot"></div>
+      <div class="page-dot on"></div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

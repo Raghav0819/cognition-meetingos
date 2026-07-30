@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Depends
+from auth_middleware import get_current_company_id
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
@@ -21,19 +22,19 @@ class TaskStatusUpdate(BaseModel):
 
 
 @router.get("/")
-def get_all_tasks(x_company_id: str = Header(default="")):
-    if not x_company_id:
+def get_all_tasks(company_id: str = Depends(get_current_company_id)):
+    if not company_id:
         return []
-    tasks = db.collection('tasks').where('companyId', '==', x_company_id).stream()
+    tasks = db.collection('tasks').where('companyId', '==', company_id).stream()
     return [{'id': t.id, **t.to_dict()} for t in tasks]
 
 
 @router.post("/check-overdue")
-def check_overdue(x_company_id: str = Header(default="")):
-    if not x_company_id:
+def check_overdue(company_id: str = Depends(get_current_company_id)):
+    if not company_id:
         return {"updated": 0}
     today = datetime.now(timezone.utc).date()
-    pending = db.collection('tasks').where('companyId', '==', x_company_id).where('status', '==', 'pending').stream()
+    pending = db.collection('tasks').where('companyId', '==', company_id).where('status', '==', 'pending').stream()
     updated = 0
     for snap in pending:
         deadline_str = snap.to_dict().get('deadline', '')
@@ -49,24 +50,27 @@ def check_overdue(x_company_id: str = Header(default="")):
 
 
 @router.get("/user/{name}")
-def get_tasks_for_user(name: str, x_company_id: str = Header(default="")):
-    if not x_company_id:
+def get_tasks_for_user(name: str, company_id: str = Depends(get_current_company_id)):
+    if not company_id:
         return []
     # Case-insensitive match — CrewAI may capitalize names differently than the user's profile
     name_lower = name.lower()
-    tasks = db.collection('tasks').where('companyId', '==', x_company_id).stream()
+    tasks = db.collection('tasks').where('companyId', '==', company_id).stream()
     return [{'id': t.id, **t.to_dict()} for t in tasks
             if (t.to_dict().get('assigned_to') or '').lower() == name_lower]
 
 
 @router.post("/{task_id}/validate")
-def validate_task(task_id: str, data: TaskValidation):
+def validate_task(task_id: str, data: TaskValidation, company_id: str = Depends(get_current_company_id)):
     task_ref = db.collection('tasks').document(task_id)
     task_doc = task_ref.get()
     if not task_doc.exists:
         raise HTTPException(status_code=404, detail="Task not found")
 
     task = task_doc.to_dict()
+    if task.get('companyId') != company_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     updates = {'validated': data.validated}
     if data.edited_title:
         updates['title'] = data.edited_title
@@ -88,13 +92,16 @@ def validate_task(task_id: str, data: TaskValidation):
 
 
 @router.patch("/{task_id}/status")
-def update_task_status(task_id: str, data: TaskStatusUpdate):
+def update_task_status(task_id: str, data: TaskStatusUpdate, company_id: str = Depends(get_current_company_id)):
     task_ref = db.collection('tasks').document(task_id)
     task_doc = task_ref.get()
     if not task_doc.exists:
         raise HTTPException(status_code=404, detail="Task not found")
 
     task = task_doc.to_dict()
+    if task.get('companyId') != company_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     updates = {'status': data.status}
     if data.escalated_to:
         updates['escalated_to'] = data.escalated_to
