@@ -120,6 +120,15 @@ service cloud.firestore {
       // Company management should be done via Cloud Functions or admin panel.
       allow update: if false;
       allow delete: if false;
+
+      // Company Chat Messages
+      match /messages/{messageId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if belongsToCompany(companyId)
+                      && request.resource.data.senderId == request.auth.uid
+                      && request.resource.data.keys().hasAll(['text', 'senderId', 'senderName', 'senderRole', 'createdAt'])
+                      && request.resource.data.createdAt == request.time;
+      }
     }
 
     // ╔══════════════════════════════════════════════════════════════════╗

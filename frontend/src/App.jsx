@@ -8,11 +8,18 @@ import EmployeeDashboard from './pages/EmployeeDashboard'
 import ManagerDashboard  from './pages/ManagerDashboard'
 import MeetingDetail     from './pages/MeetingDetail'
 
+import CompanyChat       from './components/CompanyChat'
+
 function ProtectedRoute({ children }) {
   const { user, userProfile } = useAuth()
   if (!user || !userProfile) return <Navigate to="/login" replace />
   if (!userProfile.companyId)  return <Navigate to="/login" replace />
-  return children
+  return (
+    <>
+      {children}
+      <CompanyChat />
+    </>
+  )
 }
 
 function AppRoutes() {
