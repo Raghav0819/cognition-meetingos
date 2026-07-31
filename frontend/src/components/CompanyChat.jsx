@@ -21,38 +21,40 @@ export default function CompanyChat() {
   const [unread, setUnread] = useState(0)
   
   const messagesEndRef = useRef(null)
-  
-  // Only render if the user is authenticated and part of a company
-  if (!userProfile || !userProfile.companyId) return null
+  const prevLenRef = useRef(0)
 
+  const companyId = userProfile?.companyId
+  const uid = userProfile?.uid
+
+  // Real-time Firestore listener
   useEffect(() => {
-    // Reference to the company's messages subcollection
-    const messagesRef = collection(firestore, 'companies', userProfile.companyId, 'messages')
-    // Order by createdAt ascending
+    if (!companyId) return
+
+    const messagesRef = collection(firestore, 'companies', companyId, 'messages')
     const q = query(messagesRef, orderBy('createdAt', 'asc'))
 
-    // Set up real-time listener
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = []
       snapshot.forEach(doc => {
         fetched.push({ id: doc.id, ...doc.data() })
       })
       
+      // Track unread: if chat is closed and new messages arrived
+      if (!isOpen && fetched.length > prevLenRef.current && prevLenRef.current > 0) {
+        setUnread(prev => prev + (fetched.length - prevLenRef.current))
+      }
+      prevLenRef.current = fetched.length
+
       setMessages(fetched)
       setLoading(false)
-      
-      // If the chat is closed and we received new messages (after initial load),
-      // we could increment the unread count. For simplicity, just increment if the length changed and not open.
-      if (!isOpen && fetched.length > messages.length && !loading) {
-         setUnread(prev => prev + 1)
-      }
     }, (error) => {
       console.error("Chat listener error:", error)
       toast('Failed to connect to team chat', 'error')
+      setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [userProfile.companyId, isOpen]) // Re-evaluate unread logic when isOpen changes
+  }, [companyId])
 
   // Clear unread when opening
   useEffect(() => {
@@ -66,6 +68,9 @@ export default function CompanyChat() {
     }
   }, [messages, isOpen])
 
+  // Don't render if user isn't in a company (AFTER all hooks)
+  if (!userProfile || !companyId) return null
+
   async function handleSend(e) {
     e.preventDefault()
     if (!inputText.trim()) return
@@ -74,10 +79,10 @@ export default function CompanyChat() {
     setInputText('')
 
     try {
-      const messagesRef = collection(firestore, 'companies', userProfile.companyId, 'messages')
+      const messagesRef = collection(firestore, 'companies', companyId, 'messages')
       await addDoc(messagesRef, {
         text: msg,
-        senderId: userProfile.uid,
+        senderId: uid,
         senderName: userProfile.name,
         senderRole: userProfile.role,
         createdAt: serverTimestamp()
@@ -148,7 +153,7 @@ export default function CompanyChat() {
             </div>
           ) : (
             messages.map((msg, idx) => {
-              const isMe = msg.senderId === userProfile.uid
+              const isMe = msg.senderId === uid
               const roleColor = ROLE_COLORS[msg.senderRole] || '#9ca3af'
               
               // Only show name header if it's not me, and previous message wasn't from the same person

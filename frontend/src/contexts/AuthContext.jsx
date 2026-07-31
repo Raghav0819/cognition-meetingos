@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
         setUser(firebaseUser)
         const snap = await getDoc(doc(firestore, 'users', firebaseUser.uid))
         if (snap.exists()) {
-          const profile = snap.data()
+          const profile = { uid: firebaseUser.uid, ...snap.data() }
           setUserProfile(profile)
           localStorage.setItem('user', JSON.stringify(profile))
         }
