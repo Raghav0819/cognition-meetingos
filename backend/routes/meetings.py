@@ -288,7 +288,7 @@ TRANSCRIPT:
         req = urllib.request.Request(
             "https://api.groq.com/openai/v1/chat/completions",
             data=json.dumps({
-                "model": "llama-3.3-70b-versatile",
+                "model": "openai/gpt-oss-120b",  # llama-3.3-70b-versatile was retired from Groq's catalog
                 "messages": [
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": payload.message}

@@ -4,14 +4,17 @@ from crew.tools import SaveLogTool, SaveTasksTool
 save_log = SaveLogTool()
 save_tasks = SaveTasksTool()
 
-# Define Groq LLM once, reuse everywhere
+# Define Groq LLM once, reuse everywhere.
+# NOTE: llama-3.3-70b-versatile / llama-3.1-8b-instant were retired from
+# Groq's catalog (calls started failing with model_not_found) — swapped for
+# their current closest equivalents.
 groq_llm = LLM(
-    model="groq/llama-3.3-70b-versatile",
+    model="groq/openai/gpt-oss-120b",
     temperature=0.3
 )
 
 groq_llm_small = LLM(
-    model="groq/llama-3.1-8b-instant",  # much higher TPM limit
+    model="groq/openai/gpt-oss-20b",  # smaller/faster, higher TPM limit
     temperature=0.3
 )
 
