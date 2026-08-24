@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
+from firebase_admin import firestore
 from firebase_config import db
 from auth_middleware import get_current_user_uid, get_current_company_id
 from slowapi import Limiter
@@ -207,9 +208,12 @@ def remove_team_member(
     if caller_role == 'pm' and target_role == 'pm':
         raise HTTPException(status_code=403, detail="PMs cannot remove other PMs")
 
-    # Remove the user from the company by unsetting the companyId
+    # Remove the user from the company by deleting the companyId field entirely.
+    # Setting it to "" instead would leave the field present-but-empty, which
+    # breaks the Firestore rule for re-joining (it requires the field to be
+    # genuinely absent before a user can set companyId for the first time).
     db.collection('users').document(target_uid).update({
-        "companyId": ""
+        "companyId": firestore.DELETE_FIELD
     })
 
     return {"message": "User removed from company successfully"}
