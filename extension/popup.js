@@ -1,6 +1,13 @@
 const BACKEND = 'https://cognition-meetingos.onrender.com'
+const WEB_APP = 'https://cognition-meetingos.vercel.app'
+
+// Firebase ID tokens expire after ~1 hour. The web app refreshes it
+// continuously while open, so a token older than this means the web app
+// tab probably isn't open/logged in anymore.
+const TOKEN_STALE_MS = 55 * 60 * 1000
 
 let isRecording = false
+let authToken   = null
 
 const dot           = document.getElementById('dot')
 const statusText    = document.getElementById('statusText')
@@ -13,30 +20,29 @@ const msgBox        = document.getElementById('message')
 const partList      = document.getElementById('participantList')
 const titleInput    = document.getElementById('meetingTitle')
 const deptInput     = document.getElementById('department')
-const companyInput  = document.getElementById('companyId')
-const companyLabel  = document.getElementById('companyLabel')
+const authLabel     = document.getElementById('authLabel')
 
-// Load saved company ID from chrome storage
-chrome.storage.local.get(['companyId'], result => {
-  if (result.companyId) {
-    companyInput.value = result.companyId
-    companyLabel.textContent = '✓ Company ID'
-    companyLabel.style.color = '#4ade80'
-  }
-})
+function refreshAuthStatus() {
+  chrome.storage.local.get(['authToken', 'authEmail', 'authTs'], result => {
+    const fresh = result.authTs && (Date.now() - result.authTs) < TOKEN_STALE_MS
+    if (result.authToken && fresh) {
+      authToken = result.authToken
+      authLabel.textContent = `✓ Signed in as ${result.authEmail}`
+      authLabel.style.color = '#4ade80'
+    } else {
+      authToken = null
+      authLabel.textContent = result.authToken
+        ? '⚠ Session expired — reopen the web app tab to refresh'
+        : '⚠ Not signed in — open the web app and log in'
+      authLabel.style.color = '#f87171'
+    }
+  })
+}
 
-// Save company ID whenever it changes
-companyInput.addEventListener('change', () => {
-  const val = companyInput.value.trim()
-  chrome.storage.local.set({ companyId: val })
-  if (val) {
-    companyLabel.textContent = '✓ Company ID saved'
-    companyLabel.style.color = '#4ade80'
-  } else {
-    companyLabel.textContent = '⚠ Company ID (paste from PM Dashboard)'
-    companyLabel.style.color = '#f87171'
-  }
-})
+refreshAuthStatus()
+// The web app's bridge script relays a fresh token every ~15s while open;
+// poll storage so the popup picks it up without needing to be reopened.
+setInterval(refreshAuthStatus, 5000)
 
 function showMessage(text, type = '') {
   msgBox.textContent = text
@@ -126,9 +132,8 @@ btnSend.addEventListener('click', () => {
         participants.push({ name: 'Unknown', role: 'employee' })
       }
 
-      const companyId = companyInput.value.trim()
-      if (!companyId) {
-        return showMessage('⚠ Please enter your Company ID first (copy from PM Dashboard)', 'error')
+      if (!authToken) {
+        return showMessage(`⚠ Not signed in. Open ${WEB_APP} and log in, then try again.`, 'error')
       }
 
       showMessage('Sending to CrewAI agents...')
@@ -139,7 +144,7 @@ btnSend.addEventListener('click', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Company-ID': companyId,
+            'Authorization': `Bearer ${authToken}`,
           },
           body: JSON.stringify({
             title,

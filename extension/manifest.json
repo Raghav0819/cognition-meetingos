@@ -12,10 +12,21 @@
     "https://meet.google.com/*",
     "https://cognition-meetingos.onrender.com/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://cognition-meetingos.vercel.app/*",
+        "http://localhost:5173/*"
+      ],
+      "js": ["bridge.js"],
       "run_at": "document_idle"
     }
   ],
