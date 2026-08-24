@@ -1,6 +1,6 @@
 {
   "projects": {
-    "project_id": "cognition-meetingos"
+    "default": "cognition-meetingos"
   },
   "targets": {},
   "etags": {}

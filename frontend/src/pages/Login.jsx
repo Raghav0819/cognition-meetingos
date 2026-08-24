@@ -159,8 +159,9 @@ function CompanySetupScreen({ uid, role, onDone }) {
       const profile = JSON.parse(localStorage.getItem('user') || '{}')
       localStorage.setItem('user', JSON.stringify({ ...profile, companyId }))
       onDone()
-    } catch {
-      setError('Failed to join company. Try again.')
+    } catch (err) {
+      console.error('Join company failed:', err)
+      setError(`Failed to join company: ${err.message || 'Try again.'}`)
     } finally {
       setLoading(false)
     }

@@ -8,6 +8,9 @@ backend/meetingos.db
 # Environment variables — NEVER commit this
 backend/.env
 
+# Firebase service account key — NEVER commit this (grants admin access)
+backend/firebase-service-account.json
+
 # Node
 frontend/node_modules/
 frontend/dist/

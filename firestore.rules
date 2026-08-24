@@ -26,10 +26,13 @@ service cloud.firestore {
       return isAuthenticated() && getUserProfile().companyId == companyId;
     }
 
-    // Returns true if the field has not been modified in this write
+    // Returns true if the field has not been modified in this write.
+    // Guards against comparing against a field that doesn't exist yet on
+    // the existing document (e.g. companyId before a user has joined one) —
+    // accessing a missing map key would otherwise throw and deny the write.
     function fieldUnchanged(field) {
       return !(field in request.resource.data)
-          || request.resource.data[field] == resource.data[field];
+          || (field in resource.data && request.resource.data[field] == resource.data[field]);
     }
 
     // ╔══════════════════════════════════════════════════════════════════╗
